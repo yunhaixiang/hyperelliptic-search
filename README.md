@@ -2,7 +2,7 @@
 
 This project uses Axplorer to search for high-genus hyperelliptic curves over small odd prime fields with sparse L-polynomials.
 
-For a genus `g` curve, write the L-polynomial coefficients as `a_1, ..., a_g, ...`. The project target is to make the coefficients among `a_1, ..., a_{g-1}` vanish. The abundance of a curve is the number of nonzero coefficients among `a_1, ..., a_{g-1}`; lower abundance means a sparser L-polynomial.
+For a genus `g` curve, write the L-polynomial coefficients as `a_1, ..., a_g, ...`. The project target is to make the coefficients among `a_1, ..., a_{g-1}` vanish. The sparsity of a curve is the number of nonzero coefficients among `a_1, ..., a_{g-1}`; lower sparsity means a sparser L-polynomial.
 
 ## Current Axplorer Environment
 
@@ -25,14 +25,23 @@ Deferred intentionally:
 
 - squarefreeness and curve validity checks
 - L-polynomial computation
-- abundance scoring
+- sparsity scoring
 - local search and repair
 - C++ backend integration
+
+## Python Data Generation
+
+The `data_gen/` directory contains a Python data-generation implementation. Its planned role is to enumerate small-genus examples, organize isomorphism classes, compute invariants, and produce datasets for later sparsity analysis and PCA clustering.
+
+Current status: basic prime fields, finite-field polynomials, hyperelliptic model validation, point counting over extensions, L-polynomial coefficient computation, and sparsity-limited early stopping are implemented.
+
+The implementation is pure Python for now, with the option to port speed-critical pieces to C++ later.
 
 ## Relevant Files
 
 - `src/envs/hyperelliptic.py` contains the project-specific Axplorer scaffold.
 - `src/envs/__init__.py` registers the environment name.
+- `data_gen/` contains the Python data-generation implementation.
 - `README-Axplorer.md` is the upstream Axplorer README and should be treated as Axplorer reference material.
 
 ## Example Shape
