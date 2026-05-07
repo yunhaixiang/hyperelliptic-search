@@ -72,13 +72,10 @@ python3 -m data_gen.hyperelliptic --p 5 --genus 2 --max-sparsity 2
 For high-genus sparse search, put the Hasse-Witt filter before canonicalization:
 
 ```bash
-python3 -m data_gen.hyperelliptic --p 5 --genus 20 --max-sparsity 1 --mode sparse-search
+python3 -m data_gen.hyperelliptic --p 5 --genus 20 --max-sparsity 1 --hasse-witt-prefilter
 ```
 
-The command has two matching modes:
-
-- `--mode exhaustive-search`: use SQLite BLOB orbit lookup and store orbit keys for complete canonical-class enumeration.
-- `--mode sparse-search`: run the Hasse-Witt filter before canonicalization; Hasse-Witt failures are counted as `rejected_hasse_witt_uncanonicalized` and are not inserted into the canonical-class tables. Hasse-Witt survivors still use SQLite orbit lookup before full canonicalization.
+By default, the command uses SQLite BLOB orbit lookup and stores orbit keys for complete canonical-class enumeration. With `--hasse-witt-prefilter`, it runs the Hasse-Witt filter before canonicalization; Hasse-Witt failures are counted as `rejected_hasse_witt_uncanonicalized` and are not inserted into the canonical-class tables. Hasse-Witt survivors still use SQLite orbit lookup before full canonicalization.
 
 The runner prints progress as:
 
@@ -86,17 +83,17 @@ The runner prints progress as:
 progress: processed/total sparse_presentations=N sparse_isomorphism_classes=M total_isomorphism_classes=K
 ```
 
-In `sparse-search`, Hasse-Witt failures are not canonicalized, so the progress line prints `canonicalized_isomorphism_classes=K` instead of `total_isomorphism_classes=K`.
+With `--hasse-witt-prefilter`, Hasse-Witt failures are not canonicalized, so the progress line prints `canonicalized_isomorphism_classes=K` instead of `total_isomorphism_classes=K`.
 
 The SQLite output uses:
 
-- `orbit_cache`: exhaustive-search BLOB lookup table for `(rational_branch_count, orbit_key) -> canonical_key`.
+- `orbit_cache`: BLOB lookup table for `(rational_branch_count, orbit_key) -> canonical_key`.
 - `curve_cache`: per-canonical-key computation results for the output file's sparsity bound, including rational branch count, L-polynomial data, and rejection status.
 - `sparse_curves`: sparse survivors with their exact `a_1, ..., a_g` coefficients.
 
 In `curve_cache` and `sparse_curves`, `coefficients` are readable JSON integer lists. In `sparse_curves`, the output `lpoly` is also readable JSON. Internal cache keys and intermediate L-polynomial fields are stored as compact BLOBs.
 
-In both modes, Hasse-Witt survivors use SQLite orbit lookup to skip repeated canonicalization when a presentation is already in a stored `PGL_2` orbit. The difference is that `sparse-search` does not canonicalize or store Hasse-Witt failures.
+With `--hasse-witt-prefilter`, Hasse-Witt survivors use SQLite orbit lookup to skip repeated canonicalization when a presentation is already in a stored `PGL_2` orbit. The difference is that Hasse-Witt failures are not canonicalized or stored.
 
 ## Python Tests
 

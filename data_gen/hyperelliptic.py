@@ -839,15 +839,10 @@ class EnumerationContext:
         prime: int,
         genus: int,
         sqlite_path: str | Path | None = None,
-        search_mode: str = "exhaustive-search",
-        hasse_witt_before_canonicalization: Optional[bool] = None,
+        hasse_witt_prefilter: bool = False,
     ) -> None:
         if genus < 1:
             raise ValueError("genus must be positive")
-        if search_mode not in {"exhaustive-search", "sparse-search"}:
-            raise ValueError("search mode must be 'exhaustive-search' or 'sparse-search'")
-        if hasse_witt_before_canonicalization is not None:
-            search_mode = "sparse-search" if hasse_witt_before_canonicalization else search_mode
         self._created_at = perf_counter()
         self._processed_polynomials = 0
         self._processing_seconds = 0.0
@@ -857,7 +852,7 @@ class EnumerationContext:
         self.field = PrimeField(prime)
         self.genus = genus
         self.binary_degree = 2 * genus + 2
-        self.search_mode = search_mode
+        self.hasse_witt_prefilter = hasse_witt_prefilter
         self.point_counting_context = PointCountingContext(self.field, self.binary_degree)
         self.pgl2 = _precompute_pgl2(prime)
         self.pgl2_action_matrices = tuple(_pgl2_action_matrix(matrix, self.binary_degree, prime) for matrix in self.pgl2)
@@ -1236,7 +1231,7 @@ class EnumerationContext:
             return {"status": "singular", "coefficients": polynomial.coefficients}
 
         precomputed_lpoly_mod_p: Optional[list[int]] = None
-        if self.search_mode == "sparse-search":
+        if self.hasse_witt_prefilter:
             precomputed_lpoly_mod_p = self.curve(polynomial).l_polynomial_coefficients_mod_p()
             sparsity_mod_p = sum(1 for coefficient in precomputed_lpoly_mod_p[:-1] if coefficient != 0)
             if sparsity_mod_p > max_sparsity:
@@ -1246,26 +1241,15 @@ class EnumerationContext:
                     "lpoly_mod_p": precomputed_lpoly_mod_p,
                 }
 
-        if self.search_mode == "sparse-search":
-            rational_branch_count = self.rational_branch_count(polynomial)
-            hasse_witt_lpoly_mod_p = tuple(precomputed_lpoly_mod_p) if precomputed_lpoly_mod_p is not None else None
-            orbit_key = self._normalized_binary_form_key(polynomial)
-            canonical_key = self._lookup_orbit_cache(rational_branch_count, orbit_key)
-            if canonical_key is None:
-                canonical_key, orbit = self._canonical_key_and_orbit(polynomial)
-                self._insert_orbit_cache(rational_branch_count, orbit, canonical_key)
-            else:
-                self.canonical_key_cache[polynomial.coefficients] = canonical_key
+        rational_branch_count = self.rational_branch_count(polynomial)
+        hasse_witt_lpoly_mod_p = tuple(precomputed_lpoly_mod_p) if precomputed_lpoly_mod_p is not None else None
+        orbit_key = self._normalized_binary_form_key(polynomial)
+        canonical_key = self._lookup_orbit_cache(rational_branch_count, orbit_key)
+        if canonical_key is None:
+            canonical_key, orbit = self._canonical_key_and_orbit(polynomial)
+            self._insert_orbit_cache(rational_branch_count, orbit, canonical_key)
         else:
-            rational_branch_count = self.rational_branch_count(polynomial)
-            hasse_witt_lpoly_mod_p = None
-            orbit_key = self._normalized_binary_form_key(polynomial)
-            canonical_key = self._lookup_orbit_cache(rational_branch_count, orbit_key)
-            if canonical_key is None:
-                canonical_key, orbit = self._canonical_key_and_orbit(polynomial)
-                self._insert_orbit_cache(rational_branch_count, orbit, canonical_key)
-            else:
-                self.canonical_key_cache[polynomial.coefficients] = canonical_key
+            self.canonical_key_cache[polynomial.coefficients] = canonical_key
         existing_record = self.canonical_records.get(canonical_key)
         record = self._register_or_update_record(
             canonical_key=canonical_key,
@@ -1592,10 +1576,10 @@ def progress_line(
         f"sparse_presentations={sparse_presentations}",
         f"sparse_isomorphism_classes={sparse_isomorphism_classes(context, max_sparsity)}",
     ]
-    if context.search_mode == "exhaustive-search":
-        fields.append(f"total_isomorphism_classes={len(context.canonical_records)}")
-    else:
+    if context.hasse_witt_prefilter:
         fields.append(f"canonicalized_isomorphism_classes={len(context.canonical_records)}")
+    else:
+        fields.append(f"total_isomorphism_classes={len(context.canonical_records)}")
     return " ".join(fields)
 
 
@@ -1620,10 +1604,9 @@ def parse_enumeration_args() -> argparse.Namespace:
         help="Print progress every N raw coefficient vectors. Use 0 to print only final output.",
     )
     parser.add_argument(
-        "--mode",
-        choices=("exhaustive-search", "sparse-search"),
-        default="exhaustive-search",
-        help="exhaustive-search uses SQLite orbit lookup; sparse-search applies Hasse-Witt before canonicalization.",
+        "--hasse-witt-prefilter",
+        action="store_true",
+        help="Apply the Hasse-Witt mod-p sparsity filter before canonicalization.",
     )
     return parser.parse_args()
 
@@ -1636,7 +1619,7 @@ def run_enumeration_from_args(args: argparse.Namespace) -> None:
         prime=args.p,
         genus=args.genus,
         sqlite_path=sqlite_path,
-        search_mode=args.mode,
+        hasse_witt_prefilter=args.hasse_witt_prefilter,
     )
     try:
         total = total_coefficient_vectors(

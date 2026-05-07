@@ -165,7 +165,7 @@ class HyperellipticTests(unittest.TestCase):
     def test_exhaustive_search_uses_sqlite_orbit_lookup(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = f"{tmpdir}/curves.sqlite"
-            context = EnumerationContext(prime=5, genus=2, sqlite_path=db_path, search_mode="exhaustive-search")
+            context = EnumerationContext(prime=5, genus=2, sqlite_path=db_path)
 
             result = context.process_polynomial_for_output([1, 1, 0, 0, 0, 1], max_sparsity=0)
             self.assertEqual(result["status"], "sparse")
@@ -217,14 +217,14 @@ class HyperellipticTests(unittest.TestCase):
             connection.close()
             context.close_sqlite()
 
-    def test_sparse_search_skips_canonicalization_for_mod_p_rejections(self):
+    def test_hasse_witt_prefilter_skips_canonicalization_for_mod_p_rejections(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = f"{tmpdir}/curves.sqlite"
             context = EnumerationContext(
                 prime=5,
                 genus=2,
                 sqlite_path=db_path,
-                search_mode="sparse-search",
+                hasse_witt_prefilter=True,
             )
 
             result = context.process_polynomial_for_output([1, 0, 1, 0, 0, 1], max_sparsity=0)
@@ -238,14 +238,14 @@ class HyperellipticTests(unittest.TestCase):
             connection.close()
             context.close_sqlite()
 
-    def test_sparse_search_uses_sqlite_orbit_lookup_for_hasse_witt_survivors(self):
+    def test_hasse_witt_prefilter_uses_sqlite_orbit_lookup_for_survivors(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = f"{tmpdir}/curves.sqlite"
             context = EnumerationContext(
                 prime=5,
                 genus=2,
                 sqlite_path=db_path,
-                search_mode="sparse-search",
+                hasse_witt_prefilter=True,
             )
 
             result = context.process_polynomial_for_output([1, 1, 0, 0, 0, 1], max_sparsity=0)
@@ -317,8 +317,7 @@ class HyperellipticTests(unittest.TestCase):
                     "3",
                     "--progress-interval",
                     "1",
-                    "--mode",
-                    "sparse-search",
+                    "--hasse-witt-prefilter",
                     "--out",
                     db_path,
                 ],
