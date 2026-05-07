@@ -11,6 +11,6 @@ checkpoint/
 
 .pyre/
 
-data_gen/results/
+results/
 
 .DS_Store
