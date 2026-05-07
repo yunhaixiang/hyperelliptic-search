@@ -94,6 +94,8 @@ The SQLite output uses:
 - `curve_cache`: per-canonical-key computation results for the output file's sparsity bound, including rational branch count, L-polynomial data, and rejection status.
 - `sparse_curves`: sparse survivors with their exact `a_1, ..., a_g` coefficients.
 
+In `curve_cache` and `sparse_curves`, `coefficients` are readable JSON integer lists. In `sparse_curves`, the output `lpoly` is also readable JSON. Internal cache keys and intermediate L-polynomial fields are stored as compact BLOBs.
+
 In both modes, Hasse-Witt survivors use SQLite orbit lookup to skip repeated canonicalization when a presentation is already in a stored `PGL_2` orbit. The difference is that `sparse-search` does not canonicalize or store Hasse-Witt failures.
 
 ## Python Tests

@@ -188,6 +188,13 @@ class HyperellipticTests(unittest.TestCase):
             self.assertNotIn("ground_point_count", curve_cache_columns)
             self.assertNotIn("factorization_pattern", curve_cache_columns)
             self.assertNotIn("max_sparsity", curve_cache_columns)
+            self.assertEqual(connection.execute("SELECT typeof(coefficients) FROM curve_cache").fetchone()[0], "text")
+            self.assertEqual(connection.execute("SELECT typeof(canonical_key) FROM curve_cache").fetchone()[0], "blob")
+            self.assertEqual(connection.execute("SELECT typeof(lpoly_mod_p) FROM curve_cache").fetchone()[0], "blob")
+            self.assertEqual(connection.execute("SELECT typeof(exact_lpoly) FROM curve_cache").fetchone()[0], "blob")
+            self.assertEqual(connection.execute("SELECT typeof(coefficients) FROM sparse_curves").fetchone()[0], "text")
+            self.assertEqual(connection.execute("SELECT typeof(lpoly) FROM sparse_curves").fetchone()[0], "text")
+            self.assertEqual(connection.execute("SELECT typeof(canonical_key) FROM sparse_curves").fetchone()[0], "blob")
             self.assertEqual(len(context.canonical_records), 1)
             record = context.canonical_records[result["canonical_key"]]
             self.assertIn(result["canonical_key"], context.index_by_rational_branch_count[record.rational_branch_count])

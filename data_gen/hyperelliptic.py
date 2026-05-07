@@ -9,6 +9,7 @@ from pathlib import Path
 import sqlite3
 from time import perf_counter
 from typing import Iterable, Optional
+import zlib
 
 
 def _is_odd_prime(value: int) -> bool:
@@ -340,6 +341,21 @@ def _unpack_int_tuple(text: str | bytes) -> tuple[int, ...]:
     if isinstance(text, bytes):
         text = text.decode("ascii")
     return tuple(json.loads(text))
+
+
+def _pack_general_int_tuple_blob(values: tuple[int, ...] | list[int]) -> bytes:
+    return zlib.compress(json.dumps(list(values), separators=(",", ":")).encode("ascii"))
+
+
+def _unpack_general_int_tuple_blob(value: str | bytes | None) -> Optional[tuple[int, ...]]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return _unpack_int_tuple(value)
+    try:
+        return tuple(json.loads(zlib.decompress(value).decode("ascii")))
+    except zlib.error:
+        return _unpack_int_tuple(value)
 
 
 def _parse_max_sparsity_from_sqlite_path(path: Optional[Path]) -> Optional[int]:
@@ -900,18 +916,18 @@ class EnumerationContext:
         self.sqlite_connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS curve_cache (
-                canonical_key TEXT NOT NULL,
+                canonical_key BLOB NOT NULL,
                 rational_branch_count INTEGER NOT NULL,
                 coefficients TEXT NOT NULL,
-                lpoly_mod_p TEXT,
-                exact_lpoly TEXT,
+                lpoly_mod_p BLOB,
+                exact_lpoly BLOB,
                 sparsity INTEGER,
                 status TEXT NOT NULL,
                 PRIMARY KEY (canonical_key)
             );
 
             CREATE TABLE IF NOT EXISTS sparse_curves (
-                canonical_key TEXT NOT NULL,
+                canonical_key BLOB NOT NULL,
                 coefficients TEXT NOT NULL,
                 lpoly TEXT NOT NULL,
                 sparsity INTEGER NOT NULL,
@@ -956,28 +972,24 @@ class EnumerationContext:
         ).fetchall()
 
         for row in rows:
-            canonical_key_text = row[0]
+            canonical_key_value = row[0]
             rational_branch_count = row[1]
             coefficients_text = row[2]
-            lpoly_mod_p_text = row[3]
-            exact_lpoly_text = row[4]
+            lpoly_mod_p_value = row[3]
+            exact_lpoly_value = row[4]
             sparsity = row[5]
             status = row[6]
             next_index = 7
             max_sparsity = row[next_index] if has_max_sparsity_column else self._sqlite_max_sparsity
             next_index += 1 if has_max_sparsity_column else 0
-            hasse_witt_lpoly_mod_p_text = row[next_index] if has_hasse_witt_column else None
+            hasse_witt_lpoly_mod_p_value = row[next_index] if has_hasse_witt_column else None
             if max_sparsity is None:
                 continue
-            canonical_key = _unpack_int_tuple(canonical_key_text)
+            canonical_key = self._unpack_field_tuple_blob(canonical_key_value)
             coefficients = _unpack_int_tuple(coefficients_text)
-            hasse_witt_lpoly_mod_p = (
-                _unpack_int_tuple(hasse_witt_lpoly_mod_p_text)
-                if hasse_witt_lpoly_mod_p_text is not None
-                else None
-            )
-            lpoly_mod_p = _unpack_int_tuple(lpoly_mod_p_text) if lpoly_mod_p_text is not None else None
-            exact_lpoly = _unpack_int_tuple(exact_lpoly_text) if exact_lpoly_text is not None else None
+            hasse_witt_lpoly_mod_p = _unpack_general_int_tuple_blob(hasse_witt_lpoly_mod_p_value)
+            lpoly_mod_p = _unpack_general_int_tuple_blob(lpoly_mod_p_value)
+            exact_lpoly = _unpack_general_int_tuple_blob(exact_lpoly_value)
 
             record = self._register_or_update_record(
                 canonical_key=canonical_key,
@@ -1003,7 +1015,9 @@ class EnumerationContext:
             return bytes(values)
         return json.dumps(list(values), separators=(",", ":")).encode("ascii")
 
-    def _unpack_field_tuple_blob(self, data: bytes) -> tuple[int, ...]:
+    def _unpack_field_tuple_blob(self, data: str | bytes) -> tuple[int, ...]:
+        if isinstance(data, str):
+            return _unpack_int_tuple(data)
         if self.field.prime < 256:
             return tuple(data)
         return tuple(json.loads(data.decode("ascii")))
@@ -1465,11 +1479,11 @@ class EnumerationContext:
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                _pack_int_tuple(canonical_key),
+                self._pack_field_tuple_blob(canonical_key),
                 rational_branch_count,
                 _pack_int_tuple(coefficients),
-                _pack_int_tuple(lpoly_mod_p) if lpoly_mod_p is not None else None,
-                _pack_int_tuple(exact_lpoly) if exact_lpoly is not None else None,
+                _pack_general_int_tuple_blob(lpoly_mod_p) if lpoly_mod_p is not None else None,
+                _pack_general_int_tuple_blob(exact_lpoly) if exact_lpoly is not None else None,
                 sparsity,
                 status,
             ),
@@ -1501,7 +1515,7 @@ class EnumerationContext:
             VALUES (?, ?, ?, ?, ?)
             """,
             (
-                _pack_int_tuple(canonical_key),
+                self._pack_field_tuple_blob(canonical_key),
                 _pack_int_tuple(coefficients),
                 _pack_int_tuple(lpoly),
                 sparsity,
