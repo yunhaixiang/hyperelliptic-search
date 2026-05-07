@@ -1,8 +1,14 @@
 from src.envs.cycle import SquareEnvironment
+from src.envs.hyperelliptic import HyperellipticEnvironment
 from src.envs.isosceles import IsoscelesEnvironment
 from src.envs.sphere import SphereEnvironment
 
-ENVS = {"square": SquareEnvironment, "isosceles": IsoscelesEnvironment, "sphere": SphereEnvironment}
+ENVS = {
+    "square": SquareEnvironment,
+    "isosceles": IsoscelesEnvironment,
+    "sphere": SphereEnvironment,
+    "hyperelliptic": HyperellipticEnvironment,
+}
 
 
 def build_env(params):
