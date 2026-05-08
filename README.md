@@ -33,7 +33,7 @@ Deferred intentionally:
 
 The `data_gen/` directory contains a Python data-generation implementation. Its planned role is to enumerate small-genus examples, organize isomorphism classes, compute invariants, and produce datasets for later sparsity analysis and PCA clustering.
 
-Current status: basic prime fields, finite-field polynomials, hyperelliptic model validation, point counting over extensions, Hasse-Witt filtering, SQLite orbit lookup for isomorphism-class matching, L-polynomial coefficient computation, and sparsity-limited early stopping are implemented.
+Current status: basic prime fields, finite-field polynomials, hyperelliptic model validation, point counting over extensions, Hasse-Witt sparsity filtering, SQLite orbit lookup for isomorphism-class matching, L-polynomial coefficient computation, and sparsity-limited early stopping are implemented. When a sparsity bound is set, Hasse-Witt is always used before canonicalization and exact point counts.
 
 The implementation is pure Python for now, with the option to port speed-critical pieces to C++ later.
 

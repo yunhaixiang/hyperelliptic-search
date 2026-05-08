@@ -22,8 +22,13 @@ from data_gen.hyperelliptic import (
     _transform_binary_form,
     coefficient_vector_at_index,
     coefficient_vectors,
-    default_lexicoskip_min_classes,
+    coefficient_vectors_by_support,
+    default_lexicoskip_drought,
+    default_lexicoskip_initial_skip,
+    default_lexicoskip_max_skip,
+    default_lexicoskip_probe_window,
     run_enumeration_from_args,
+    sparse_presentations_by_orbit_size,
     total_coefficient_vectors,
 )
 
@@ -45,10 +50,20 @@ class HyperellipticTests(unittest.TestCase):
         ]
         self.assertEqual(indexed_vectors, even_vectors)
 
-    def test_default_lexicoskip_min_classes_depends_on_prime_and_genus(self):
-        self.assertEqual(default_lexicoskip_min_classes(5, 2), 100)
-        self.assertEqual(default_lexicoskip_min_classes(5, 4), 625)
-        self.assertEqual(default_lexicoskip_min_classes(7, 7), 5000)
+    def test_coefficient_vectors_by_support_increase_support_size(self):
+        vectors = list(coefficient_vectors_by_support(prime=5, genus=1, degree_model="both", limit=8))
+
+        self.assertEqual(vectors[0], (0, 0, 0, 1))
+        self.assertEqual(vectors[1], (0, 0, 0, 0, 1))
+        self.assertEqual(vectors[2], (0, 0, 0, 0, 2))
+        support_sizes = [sum(1 for coefficient in vector if coefficient != 0) for vector in vectors]
+        self.assertEqual(support_sizes, sorted(support_sizes))
+
+    def test_default_lexicoskip_parameters_depend_on_prime_and_genus(self):
+        self.assertEqual(default_lexicoskip_drought(5, 4), 2500)
+        self.assertEqual(default_lexicoskip_initial_skip(5, 4), 2500)
+        self.assertEqual(default_lexicoskip_max_skip(5, 4), 50000)
+        self.assertEqual(default_lexicoskip_probe_window(5, 4), 2500)
 
     def test_polynomial_coefficients_must_be_canonical(self):
         field = PrimeField(5)
@@ -222,8 +237,13 @@ class HyperellipticTests(unittest.TestCase):
                 for row in connection.execute("PRAGMA table_info(orbit_cache)").fetchall()
             }
             self.assertIn("ground_point_count", orbit_cache_columns)
+            self.assertIn("hasse_witt_lpoly_mod_p", orbit_cache_columns)
             self.assertEqual(
                 connection.execute("SELECT COUNT(DISTINCT ground_point_count) FROM orbit_cache").fetchone()[0],
+                1,
+            )
+            self.assertEqual(
+                connection.execute("SELECT COUNT(DISTINCT hasse_witt_lpoly_mod_p) FROM orbit_cache").fetchone()[0],
                 1,
             )
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM curve_cache").fetchone()[0], 1)
@@ -252,22 +272,54 @@ class HyperellipticTests(unittest.TestCase):
             self.assertEqual(len(context.canonical_records), 1)
             record = context.canonical_records[result["canonical_key"]]
             self.assertIn(result["canonical_key"], context.index_by_rational_branch_count[record.rational_branch_count])
+            self.assertEqual(record.orbit_size, len(stored_orbit_keys))
+            self.assertEqual(sparse_presentations_by_orbit_size(context, max_sparsity=0), len(stored_orbit_keys))
             connection.close()
             context.close_sqlite()
 
-    def test_sqlite_enumeration_output_records_hasse_witt_rejection(self):
+    def test_sqlite_enumeration_output_rejects_hasse_witt_failures_before_canonicalization(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = f"{tmpdir}/curves.sqlite"
             context = EnumerationContext(prime=5, genus=2, sqlite_path=db_path)
 
             result = context.process_polynomial_for_output([1, 0, 1, 0, 0, 1], max_sparsity=0)
-            self.assertEqual(result["status"], "rejected_hasse_witt")
+            self.assertEqual(result["status"], "rejected_hasse_witt_uncanonicalized")
+            self.assertEqual(result["lpoly_mod_p"], [4, 0])
+            self.assertEqual(len(context.canonical_records), 0)
             stats = context.process_polynomials_for_output(([1, 0, 1, 0, 0, 1],), max_sparsity=0)
-            self.assertEqual(stats, {"processed": 1, "duplicate": 1})
+            self.assertEqual(stats, {"processed": 1, "rejected_hasse_witt_uncanonicalized": 1})
 
             connection = sqlite3.connect(db_path)
-            self.assertEqual(connection.execute("SELECT status FROM curve_cache").fetchone()[0], "rejected_hasse_witt")
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM curve_cache").fetchone()[0], 0)
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM sparse_curves").fetchone()[0], 0)
+            connection.close()
+            context.close_sqlite()
+
+    def test_enumeration_can_skip_even_models_with_rational_branch_points(self):
+        context = EnumerationContext(
+            prime=5,
+            genus=1,
+            skip_even_models_with_rational_branch_point=True,
+        )
+
+        result = context.process_polynomial_for_output([0, 1, 0, 0, 1], max_sparsity=0)
+
+        self.assertEqual(result["status"], "covered_by_odd_model")
+        self.assertGreater(result["rational_branch_count"], 0)
+        self.assertEqual(len(context.canonical_records), 0)
+
+    def test_sqlite_enumeration_output_records_exact_rejection_sparsity_as_negative_one(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = f"{tmpdir}/curves.sqlite"
+            context = EnumerationContext(prime=5, genus=2, sqlite_path=db_path)
+
+            result = context.process_polynomial_for_output([1, 4, 0, 0, 0, 1], max_sparsity=0)
+            self.assertEqual(result["status"], "rejected_exact")
+            self.assertEqual(result["sparsity"], -1)
+
+            connection = sqlite3.connect(db_path)
+            self.assertEqual(connection.execute("SELECT status FROM curve_cache").fetchone()[0], "rejected_exact")
+            self.assertEqual(connection.execute("SELECT sparsity FROM curve_cache").fetchone()[0], -1)
             connection.close()
             context.close_sqlite()
 
@@ -291,15 +343,10 @@ class HyperellipticTests(unittest.TestCase):
             self.assertIn(translated_result["status"], {"sparse", "duplicate"})
             resumed_context.close_sqlite()
 
-    def test_hasse_witt_prefilter_skips_canonicalization_for_mod_p_rejections(self):
+    def test_hasse_witt_filter_skips_canonicalization_for_mod_p_rejections(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = f"{tmpdir}/curves.sqlite"
-            context = EnumerationContext(
-                prime=5,
-                genus=2,
-                sqlite_path=db_path,
-                hasse_witt_prefilter=True,
-            )
+            context = EnumerationContext(prime=5, genus=2, sqlite_path=db_path)
 
             result = context.process_polynomial_for_output([1, 0, 1, 0, 0, 1], max_sparsity=0)
             self.assertEqual(result["status"], "rejected_hasse_witt_uncanonicalized")
@@ -312,15 +359,10 @@ class HyperellipticTests(unittest.TestCase):
             connection.close()
             context.close_sqlite()
 
-    def test_hasse_witt_prefilter_uses_sqlite_orbit_lookup_for_survivors(self):
+    def test_hasse_witt_filter_uses_sqlite_orbit_lookup_for_survivors(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = f"{tmpdir}/curves.sqlite"
-            context = EnumerationContext(
-                prime=5,
-                genus=2,
-                sqlite_path=db_path,
-                hasse_witt_prefilter=True,
-            )
+            context = EnumerationContext(prime=5, genus=2, sqlite_path=db_path)
 
             result = context.process_polynomial_for_output([1, 1, 0, 0, 0, 1], max_sparsity=0)
             self.assertEqual(result["status"], "sparse")
@@ -332,6 +374,10 @@ class HyperellipticTests(unittest.TestCase):
 
             connection = sqlite3.connect(db_path)
             self.assertGreater(connection.execute("SELECT COUNT(*) FROM orbit_cache").fetchone()[0], 0)
+            self.assertEqual(
+                connection.execute("SELECT COUNT(DISTINCT hasse_witt_lpoly_mod_p) FROM orbit_cache").fetchone()[0],
+                1,
+            )
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM curve_cache").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM sparse_curves").fetchone()[0], 1)
             connection.close()
@@ -391,7 +437,6 @@ class HyperellipticTests(unittest.TestCase):
                     "3",
                     "--progress-interval",
                     "1",
-                    "--hasse-witt-prefilter",
                     "--out",
                     db_path,
                 ],
@@ -417,7 +462,6 @@ class HyperellipticTests(unittest.TestCase):
                     final_position,
                     sparse_presentations,
                     canonicalized_isomorphism_classes,
-                    total_isomorphism_classes,
                     status_counts
                 FROM enumeration_summary
                 """
@@ -425,7 +469,7 @@ class HyperellipticTests(unittest.TestCase):
             connection.close()
 
             self.assertEqual(
-                summary[:15],
+                summary[:14],
                 (
                     5,
                     2,
@@ -441,10 +485,9 @@ class HyperellipticTests(unittest.TestCase):
                     3,
                     0,
                     0,
-                    None,
                 ),
             )
-            self.assertEqual(json.loads(summary[15]), {"singular": 3})
+            self.assertEqual(json.loads(summary[14]), {"singular": 3})
 
             self.assertIn("progress: 0/3\nskipped: 0\nsparse_presentations: 0", completed.stdout)
             self.assertIn("progress: 3/3", completed.stdout)
@@ -480,8 +523,8 @@ class HyperellipticTests(unittest.TestCase):
                     "2",
                     "--lexicoskip-max-skip",
                     "4",
-                    "--lexicoskip-min-classes",
-                    "0",
+                    "--lexicoskip-probe-window",
+                    "2",
                     "--out",
                     db_path,
                 ],
@@ -500,10 +543,49 @@ class HyperellipticTests(unittest.TestCase):
 
         self.assertEqual(enumeration_mode, "lexicoskipping")
         self.assertIn("skipped:", completed.stdout)
-        self.assertIn("progress: 8/20", completed.stdout)
+        self.assertIn("progress: 17/20", completed.stdout)
         self.assertGreater(skipped, 0)
         self.assertLess(processed, 20)
         self.assertEqual(final_position, 20)
+
+    def test_enumeration_cli_support_mode_records_mode(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = f"{tmpdir}/curves.sqlite"
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "data_gen.hyperelliptic",
+                    "--p",
+                    "5",
+                    "--genus",
+                    "2",
+                    "--max-sparsity",
+                    "1",
+                    "--limit",
+                    "10",
+                    "--progress-interval",
+                    "0",
+                    "--enumeration-mode",
+                    "support",
+                    "--out",
+                    db_path,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            connection = sqlite3.connect(db_path)
+            enumeration_mode, processed = connection.execute(
+                """
+                SELECT enumeration_mode, processed
+                FROM enumeration_summary
+                """
+            ).fetchone()
+            connection.close()
+
+        self.assertEqual(enumeration_mode, "support")
+        self.assertEqual(processed, 10)
 
     def test_enumeration_cli_allows_omitted_max_sparsity(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -541,7 +623,6 @@ class HyperellipticTests(unittest.TestCase):
                 p=5,
                 genus=2,
                 max_sparsity=2,
-                degree_model="both",
                 out=Path(db_path),
                 limit=10,
                 progress_interval=0,
@@ -549,8 +630,7 @@ class HyperellipticTests(unittest.TestCase):
                 lexicoskip_drought=1000,
                 lexicoskip_initial_skip=1000,
                 lexicoskip_max_skip=1000000,
-                lexicoskip_min_classes=None,
-                hasse_witt_prefilter=False,
+                lexicoskip_probe_window=None,
             )
             calls = {"count": 0}
             original_process = EnumerationContext.process_polynomial_for_output
