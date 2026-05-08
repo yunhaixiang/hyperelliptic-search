@@ -28,10 +28,11 @@ class CanonicalRecord:
     canonical_key: tuple[int, ...]
     coefficients: tuple[int, ...]
     rational_branch_count: int
+    ground_point_count: Optional[int] = None
     hasse_witt_lpoly_mod_p: Optional[tuple[int, ...]] = None
-    status_by_max_sparsity: dict[int, str] = field(default_factory=dict)
-    sparsity_by_max_sparsity: dict[int, Optional[int]] = field(default_factory=dict)
-    exact_lpoly_by_max_sparsity: dict[int, Optional[tuple[int, ...]]] = field(default_factory=dict)
+    status_by_max_sparsity: dict[Optional[int], str] = field(default_factory=dict)
+    sparsity_by_max_sparsity: dict[Optional[int], Optional[int]] = field(default_factory=dict)
+    exact_lpoly_by_max_sparsity: dict[Optional[int], Optional[tuple[int, ...]]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -331,6 +332,14 @@ def _normalize_binary_form_up_to_square_scalar(binary_form: tuple[int, ...], pri
 
     square_scalars = sorted({value * value % prime for value in range(1, prime)})
     return min(tuple(scalar * coefficient % prime for coefficient in binary_form) for scalar in square_scalars)
+
+
+def _smallest_nonsquare(prime: int) -> int:
+    squares = {value * value % prime for value in range(1, prime)}
+    for value in range(2, prime):
+        if value not in squares:
+            return value
+    raise ValueError("prime field has no nonsquare representative")
 
 
 def _pack_int_tuple(values: tuple[int, ...] | list[int]) -> str:
@@ -905,6 +914,83 @@ class EnumerationContext:
             "status_counts": dict(self._status_counts),
         }
 
+    def write_enumeration_summary(
+        self,
+        *,
+        max_sparsity: Optional[int],
+        degree_model: str,
+        enumeration_mode: str,
+        limit: Optional[int],
+        total_coefficient_vectors: int,
+        processed: int,
+        skipped: int,
+        final_position: int,
+        sparse_presentations: int,
+    ) -> None:
+        if self.sqlite_connection is None:
+            return
+
+        timing = self.timing_summary()
+        started_at = perf_counter()
+        total_isomorphism_classes = None if self.hasse_witt_prefilter else len(self.canonical_records)
+        self.sqlite_connection.execute(
+            """
+            INSERT OR REPLACE INTO enumeration_summary (
+                id,
+                prime,
+                genus,
+                max_sparsity,
+                hasse_witt_prefilter,
+                degree_model,
+                enumeration_mode,
+                leading_coefficient_policy,
+                limit_count,
+                total_coefficient_vectors,
+                processed,
+                skipped,
+                final_position,
+                sparse_presentations,
+                sparse_isomorphism_classes,
+                canonicalized_isomorphism_classes,
+                total_isomorphism_classes,
+                elapsed_seconds,
+                processing_seconds,
+                sqlite_load_seconds,
+                sqlite_write_seconds,
+                other_seconds,
+                status_counts
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                1,
+                self.field.prime,
+                self.genus,
+                max_sparsity,
+                int(self.hasse_witt_prefilter),
+                degree_model,
+                enumeration_mode,
+                "odd:monic;even:monic-and-smallest-nonsquare",
+                limit,
+                total_coefficient_vectors,
+                processed,
+                skipped,
+                final_position,
+                sparse_presentations,
+                sparse_isomorphism_classes(self, max_sparsity),
+                len(self.canonical_records),
+                total_isomorphism_classes,
+                timing["elapsed_seconds"],
+                timing["processing_seconds"],
+                timing["sqlite_load_seconds"],
+                timing["sqlite_write_seconds"],
+                timing["other_seconds"],
+                json.dumps(timing["status_counts"], sort_keys=True, separators=(",", ":")),
+            ),
+        )
+        self.sqlite_connection.commit()
+        self._sqlite_write_seconds += perf_counter() - started_at
+
     def _initialize_sqlite_schema(self) -> None:
         if self.sqlite_connection is None:
             raise ValueError("sqlite connection is not open")
@@ -932,13 +1018,49 @@ class EnumerationContext:
 
             CREATE TABLE IF NOT EXISTS orbit_cache (
                 rational_branch_count INTEGER NOT NULL,
+                ground_point_count INTEGER,
                 orbit_key BLOB NOT NULL,
                 canonical_key BLOB NOT NULL,
-                PRIMARY KEY (rational_branch_count, orbit_key)
+                PRIMARY KEY (rational_branch_count, ground_point_count, orbit_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS enumeration_summary (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                prime INTEGER NOT NULL,
+                genus INTEGER NOT NULL,
+                max_sparsity INTEGER,
+                hasse_witt_prefilter INTEGER NOT NULL,
+                degree_model TEXT NOT NULL,
+                enumeration_mode TEXT NOT NULL,
+                leading_coefficient_policy TEXT NOT NULL,
+                limit_count INTEGER,
+                total_coefficient_vectors INTEGER NOT NULL,
+                processed INTEGER NOT NULL,
+                skipped INTEGER NOT NULL,
+                final_position INTEGER NOT NULL,
+                sparse_presentations INTEGER NOT NULL,
+                sparse_isomorphism_classes INTEGER NOT NULL,
+                canonicalized_isomorphism_classes INTEGER NOT NULL,
+                total_isomorphism_classes INTEGER,
+                elapsed_seconds REAL NOT NULL,
+                processing_seconds REAL NOT NULL,
+                sqlite_load_seconds REAL NOT NULL,
+                sqlite_write_seconds REAL NOT NULL,
+                other_seconds REAL NOT NULL,
+                status_counts TEXT NOT NULL
             );
             """
         )
         self.sqlite_connection.commit()
+
+    def _orbit_cache_has_ground_point_count(self) -> bool:
+        if self.sqlite_connection is None:
+            return False
+        columns = {
+            row[1]
+            for row in self.sqlite_connection.execute("PRAGMA table_info(orbit_cache)").fetchall()
+        }
+        return "ground_point_count" in columns
 
     def _load_sqlite_records(self) -> None:
         if self.sqlite_connection is None:
@@ -978,18 +1100,21 @@ class EnumerationContext:
             max_sparsity = row[next_index] if has_max_sparsity_column else self._sqlite_max_sparsity
             next_index += 1 if has_max_sparsity_column else 0
             hasse_witt_lpoly_mod_p_value = row[next_index] if has_hasse_witt_column else None
-            if max_sparsity is None:
-                continue
             canonical_key = self._unpack_field_tuple_blob(canonical_key_value)
             coefficients = _unpack_int_tuple(coefficients_text)
             hasse_witt_lpoly_mod_p = _unpack_general_int_tuple_blob(hasse_witt_lpoly_mod_p_value)
             lpoly_mod_p = _unpack_general_int_tuple_blob(lpoly_mod_p_value)
             exact_lpoly = _unpack_general_int_tuple_blob(exact_lpoly_value)
+            try:
+                ground_point_count = self.ground_invariants(coefficients)[1]
+            except ValueError:
+                ground_point_count = None
 
             record = self._register_or_update_record(
                 canonical_key=canonical_key,
                 coefficients=coefficients,
                 rational_branch_count=rational_branch_count,
+                ground_point_count=ground_point_count,
                 hasse_witt_lpoly_mod_p=hasse_witt_lpoly_mod_p or lpoly_mod_p,
             )
             record.status_by_max_sparsity[max_sparsity] = status
@@ -1030,14 +1155,27 @@ class EnumerationContext:
     def rational_branch_count(self, polynomial_or_coefficients: Polynomial | list[int] | tuple[int, ...]) -> int:
         polynomial = self._coerce_polynomial(polynomial_or_coefficients)
         self._require_compatible_polynomial(polynomial)
-        count = 1 if polynomial.degree == 2 * self.genus + 1 else 0
+        return self.ground_invariants(polynomial)[0]
+
+    def ground_invariants(self, polynomial_or_coefficients: Polynomial | list[int] | tuple[int, ...]) -> tuple[int, int]:
+        polynomial = self._coerce_polynomial(polynomial_or_coefficients)
+        self._require_compatible_polynomial(polynomial)
+        rational_branch_count = 1 if polynomial.degree == 2 * self.genus + 1 else 0
+        ground_point_count = 1 if polynomial.degree == 2 * self.genus + 1 else 0
+        if polynomial.degree == 2 * self.genus + 2:
+            leading_coefficient = polynomial.coefficient(polynomial.degree)
+            if leading_coefficient in self.point_counting_context.ground_quadratic_residues():
+                ground_point_count = 2
+
+        point_contributions = self.point_counting_context.ground_point_contributions()
         for x in range(self.field.prime):
             value = 0
             for coefficient in reversed(polynomial.coefficients):
                 value = (value * x + coefficient) % self.field.prime
             if value == 0:
-                count += 1
-        return count
+                rational_branch_count += 1
+            ground_point_count += point_contributions[value]
+        return rational_branch_count, ground_point_count
 
     def factorization_pattern(self, polynomial_or_coefficients: Polynomial | list[int] | tuple[int, ...]) -> tuple[int, ...]:
         polynomial = self._coerce_polynomial(polynomial_or_coefficients)
@@ -1071,7 +1209,8 @@ class EnumerationContext:
         canonical_key: tuple[int, ...],
         coefficients: tuple[int, ...],
         rational_branch_count: int,
-        hasse_witt_lpoly_mod_p: Optional[tuple[int, ...]],
+        ground_point_count: Optional[int] = None,
+        hasse_witt_lpoly_mod_p: Optional[tuple[int, ...]] = None,
     ) -> CanonicalRecord:
         record = self.canonical_records.get(canonical_key)
         if record is None:
@@ -1079,6 +1218,7 @@ class EnumerationContext:
                 canonical_key=canonical_key,
                 coefficients=coefficients,
                 rational_branch_count=rational_branch_count,
+                ground_point_count=ground_point_count,
                 hasse_witt_lpoly_mod_p=hasse_witt_lpoly_mod_p,
             )
             self.canonical_records[canonical_key] = record
@@ -1087,9 +1227,11 @@ class EnumerationContext:
 
         if record.hasse_witt_lpoly_mod_p is None and hasse_witt_lpoly_mod_p is not None:
             record.hasse_witt_lpoly_mod_p = hasse_witt_lpoly_mod_p
+        if record.ground_point_count is None and ground_point_count is not None:
+            record.ground_point_count = ground_point_count
         return record
 
-    def _result_from_record(self, record: CanonicalRecord, max_sparsity: int) -> Optional[dict[str, object]]:
+    def _result_from_record(self, record: CanonicalRecord, max_sparsity: Optional[int]) -> Optional[dict[str, object]]:
         status = record.status_by_max_sparsity.get(max_sparsity)
         if status is None:
             return None
@@ -1125,6 +1267,11 @@ class EnumerationContext:
         key = min(orbit)
         self.canonical_key_cache[polynomial.coefficients] = key
         return key, orbit
+
+    def _is_enumerated_orbit_key(self, orbit_key: tuple[int, ...]) -> bool:
+        if orbit_key[-1] != 0:
+            return True
+        return orbit_key[-2] != 0 and orbit_key[-2] in self.point_counting_context.ground_quadratic_residues()
 
     def canonical_key(self, polynomial_or_coefficients: Polynomial | list[int] | tuple[int, ...]) -> tuple[int, ...]:
         polynomial = self._coerce_polynomial(polynomial_or_coefficients)
@@ -1204,7 +1351,7 @@ class EnumerationContext:
     def process_polynomial_for_output(
         self,
         polynomial_or_coefficients: Polynomial | list[int] | tuple[int, ...],
-        max_sparsity: int,
+        max_sparsity: Optional[int],
     ) -> dict[str, object]:
         started_at = perf_counter()
         try:
@@ -1220,9 +1367,9 @@ class EnumerationContext:
     def _process_polynomial_for_output(
         self,
         polynomial_or_coefficients: Polynomial | list[int] | tuple[int, ...],
-        max_sparsity: int,
+        max_sparsity: Optional[int],
     ) -> dict[str, object]:
-        if max_sparsity < 0:
+        if max_sparsity is not None and max_sparsity < 0:
             raise ValueError("max sparsity must be nonnegative")
 
         polynomial = self._coerce_polynomial(polynomial_or_coefficients)
@@ -1231,7 +1378,7 @@ class EnumerationContext:
             return {"status": "singular", "coefficients": polynomial.coefficients}
 
         precomputed_lpoly_mod_p: Optional[list[int]] = None
-        if self.hasse_witt_prefilter:
+        if self.hasse_witt_prefilter and max_sparsity is not None:
             precomputed_lpoly_mod_p = self.curve(polynomial).l_polynomial_coefficients_mod_p()
             sparsity_mod_p = sum(1 for coefficient in precomputed_lpoly_mod_p[:-1] if coefficient != 0)
             if sparsity_mod_p > max_sparsity:
@@ -1241,13 +1388,13 @@ class EnumerationContext:
                     "lpoly_mod_p": precomputed_lpoly_mod_p,
                 }
 
-        rational_branch_count = self.rational_branch_count(polynomial)
+        rational_branch_count, ground_point_count = self.ground_invariants(polynomial)
         hasse_witt_lpoly_mod_p = tuple(precomputed_lpoly_mod_p) if precomputed_lpoly_mod_p is not None else None
         orbit_key = self._normalized_binary_form_key(polynomial)
-        canonical_key = self._lookup_orbit_cache(rational_branch_count, orbit_key)
+        canonical_key = self._lookup_orbit_cache(rational_branch_count, ground_point_count, orbit_key)
         if canonical_key is None:
             canonical_key, orbit = self._canonical_key_and_orbit(polynomial)
-            self._insert_orbit_cache(rational_branch_count, orbit, canonical_key)
+            self._insert_orbit_cache(rational_branch_count, ground_point_count, orbit, canonical_key)
         else:
             self.canonical_key_cache[polynomial.coefficients] = canonical_key
         existing_record = self.canonical_records.get(canonical_key)
@@ -1255,6 +1402,7 @@ class EnumerationContext:
             canonical_key=canonical_key,
             coefficients=polynomial.coefficients,
             rational_branch_count=rational_branch_count,
+            ground_point_count=ground_point_count,
             hasse_witt_lpoly_mod_p=hasse_witt_lpoly_mod_p,
         )
 
@@ -1277,7 +1425,7 @@ class EnumerationContext:
         record.hasse_witt_lpoly_mod_p = tuple(lpoly_mod_p)
         self._index_record(record)
         sparsity_mod_p = sum(1 for coefficient in lpoly_mod_p[:-1] if coefficient != 0)
-        if sparsity_mod_p > max_sparsity:
+        if max_sparsity is not None and sparsity_mod_p > max_sparsity:
             record.status_by_max_sparsity[max_sparsity] = "rejected_hasse_witt"
             record.sparsity_by_max_sparsity[max_sparsity] = None
             record.exact_lpoly_by_max_sparsity[max_sparsity] = None
@@ -1355,7 +1503,7 @@ class EnumerationContext:
     def process_polynomials_for_output(
         self,
         polynomials_or_coefficients: Iterable[Polynomial | list[int] | tuple[int, ...]],
-        max_sparsity: int,
+        max_sparsity: Optional[int],
     ) -> dict[str, int]:
         stats: dict[str, int] = {"processed": 0}
         for polynomial_or_coefficients in polynomials_or_coefficients:
@@ -1391,24 +1539,42 @@ class EnumerationContext:
         self._irreducible_factor_cache[degree] = cached
         return cached
 
-    def _lookup_orbit_cache(self, rational_branch_count: int, orbit_key: tuple[int, ...]) -> Optional[tuple[int, ...]]:
+    def _lookup_orbit_cache(
+        self,
+        rational_branch_count: int,
+        ground_point_count: int,
+        orbit_key: tuple[int, ...],
+    ) -> Optional[tuple[int, ...]]:
         if self.sqlite_connection is None:
             return None
 
-        row = self.sqlite_connection.execute(
-            """
-            SELECT canonical_key
-            FROM orbit_cache
-            WHERE rational_branch_count = ?
-              AND orbit_key = ?
-            """,
-            (rational_branch_count, self._pack_field_tuple_blob(orbit_key)),
-        ).fetchone()
+        if self._orbit_cache_has_ground_point_count():
+            row = self.sqlite_connection.execute(
+                """
+                SELECT canonical_key
+                FROM orbit_cache
+                WHERE rational_branch_count = ?
+                  AND ground_point_count = ?
+                  AND orbit_key = ?
+                """,
+                (rational_branch_count, ground_point_count, self._pack_field_tuple_blob(orbit_key)),
+            ).fetchone()
+        else:
+            row = self.sqlite_connection.execute(
+                """
+                SELECT canonical_key
+                FROM orbit_cache
+                WHERE rational_branch_count = ?
+                  AND orbit_key = ?
+                """,
+                (rational_branch_count, self._pack_field_tuple_blob(orbit_key)),
+            ).fetchone()
         return None if row is None else self._unpack_field_tuple_blob(row[0])
 
     def _insert_orbit_cache(
         self,
         rational_branch_count: int,
+        ground_point_count: int,
         orbit: tuple[tuple[int, ...], ...],
         canonical_key: tuple[int, ...],
     ) -> None:
@@ -1417,21 +1583,41 @@ class EnumerationContext:
 
         started_at = perf_counter()
         packed_canonical_key = self._pack_field_tuple_blob(canonical_key)
-        rows = [
-            (rational_branch_count, self._pack_field_tuple_blob(orbit_key), packed_canonical_key)
-            for orbit_key in set(orbit)
-        ]
-        self.sqlite_connection.executemany(
-            """
-            INSERT OR IGNORE INTO orbit_cache (
-                rational_branch_count,
-                orbit_key,
-                canonical_key
+        if self._orbit_cache_has_ground_point_count():
+            rows = [
+                (rational_branch_count, ground_point_count, self._pack_field_tuple_blob(orbit_key), packed_canonical_key)
+                for orbit_key in set(orbit)
+                if self._is_enumerated_orbit_key(orbit_key)
+            ]
+            self.sqlite_connection.executemany(
+                """
+                INSERT OR IGNORE INTO orbit_cache (
+                    rational_branch_count,
+                    ground_point_count,
+                    orbit_key,
+                    canonical_key
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                rows,
             )
-            VALUES (?, ?, ?)
-            """,
-            rows,
-        )
+        else:
+            rows = [
+                (rational_branch_count, self._pack_field_tuple_blob(orbit_key), packed_canonical_key)
+                for orbit_key in set(orbit)
+                if self._is_enumerated_orbit_key(orbit_key)
+            ]
+            self.sqlite_connection.executemany(
+                """
+                INSERT OR IGNORE INTO orbit_cache (
+                    rational_branch_count,
+                    orbit_key,
+                    canonical_key
+                )
+                VALUES (?, ?, ?)
+                """,
+                rows,
+            )
         self.sqlite_connection.commit()
         self._sqlite_write_seconds += perf_counter() - started_at
 
@@ -1514,7 +1700,6 @@ def coefficient_vectors(
     prime: int,
     genus: int,
     degree_model: str,
-    monic: bool,
     limit: Optional[int],
 ) -> Iterable[tuple[int, ...]]:
     degrees = []
@@ -1525,7 +1710,7 @@ def coefficient_vectors(
 
     produced = 0
     for degree in degrees:
-        leading_coefficients = (1,) if monic else range(1, prime)
+        leading_coefficients = _leading_coefficients_for_degree(prime, genus, degree)
         for coefficients in product(range(prime), repeat=degree):
             for leading_coefficient in leading_coefficients:
                 yield (*coefficients, leading_coefficient)
@@ -1534,21 +1719,54 @@ def coefficient_vectors(
                     return
 
 
-def default_sqlite_path(prime: int, genus: int, max_sparsity: int) -> Path:
-    return Path("data_gen") / "results" / f"p{prime}_g{genus}_s_{max_sparsity}.sqlite"
+def _leading_coefficients_for_degree(prime: int, genus: int, degree: int) -> tuple[int, ...]:
+    return (1,) if degree == 2 * genus + 1 else (1, _smallest_nonsquare(prime))
 
 
-def total_coefficient_vectors(prime: int, genus: int, degree_model: str, monic: bool, limit: Optional[int]) -> int:
-    total = 0
-    leading_count = 1 if monic else prime - 1
+def coefficient_vector_at_index(prime: int, genus: int, degree_model: str, index: int) -> tuple[int, ...]:
+    if index < 0:
+        raise ValueError("coefficient vector index must be nonnegative")
+
+    degrees = []
     if degree_model in {"odd", "both"}:
-        total += prime ** (2 * genus + 1) * leading_count
+        degrees.append(2 * genus + 1)
     if degree_model in {"even", "both"}:
-        total += prime ** (2 * genus + 2) * leading_count
+        degrees.append(2 * genus + 2)
+
+    remaining = index
+    for degree in degrees:
+        leading_coefficients = _leading_coefficients_for_degree(prime, genus, degree)
+        block_size = prime ** degree * len(leading_coefficients)
+        if remaining >= block_size:
+            remaining -= block_size
+            continue
+
+        low_index, leading_index = divmod(remaining, len(leading_coefficients))
+        coefficients = []
+        for exponent in range(degree - 1, -1, -1):
+            place_value = prime ** exponent
+            digit, low_index = divmod(low_index, place_value)
+            coefficients.append(digit)
+        return (*coefficients, leading_coefficients[leading_index])
+
+    raise IndexError("coefficient vector index is outside the enumeration range")
+
+
+def default_sqlite_path(prime: int, genus: int, max_sparsity: Optional[int]) -> Path:
+    sparsity_label = f"s_{max_sparsity}" if max_sparsity is not None else "all"
+    return Path("data_gen") / "results" / f"p{prime}_g{genus}_{sparsity_label}.sqlite"
+
+
+def total_coefficient_vectors(prime: int, genus: int, degree_model: str, limit: Optional[int]) -> int:
+    total = 0
+    if degree_model in {"odd", "both"}:
+        total += prime ** (2 * genus + 1)
+    if degree_model in {"even", "both"}:
+        total += 2 * prime ** (2 * genus + 2)
     return min(total, limit) if limit is not None else total
 
 
-def sparse_isomorphism_classes(context: EnumerationContext, max_sparsity: int) -> int:
+def sparse_isomorphism_classes(context: EnumerationContext, max_sparsity: Optional[int]) -> int:
     return sum(
         1
         for record in context.canonical_records.values()
@@ -1564,37 +1782,57 @@ def should_print_progress(processed: int, total: int, interval: int) -> bool:
     return processed % interval == 0
 
 
+def next_progress_threshold(position: int, total: int, interval: int) -> int:
+    if interval <= 0:
+        return total
+    return min(((position // interval) + 1) * interval, total)
+
+
+def default_lexicoskip_min_classes(prime: int, genus: int) -> int:
+    return max(100, min(5000, prime ** min(genus, 5)))
+
+
+def is_new_isomorphism_class_result(result: dict[str, object]) -> bool:
+    return result.get("status") in {"sparse", "rejected_hasse_witt", "rejected_exact"}
+
+
 def progress_line(
     processed: int,
     total: int,
+    skipped: int,
     sparse_presentations: int,
     context: EnumerationContext,
-    max_sparsity: int,
+    max_sparsity: Optional[int],
 ) -> str:
     fields = [
         f"progress: {processed}/{total}",
-        f"sparse_presentations={sparse_presentations}",
-        f"sparse_isomorphism_classes={sparse_isomorphism_classes(context, max_sparsity)}",
+        f"skipped: {skipped}",
+        f"sparse_presentations: {sparse_presentations}",
+        f"sparse_isomorphism_classes: {sparse_isomorphism_classes(context, max_sparsity)}",
     ]
     if context.hasse_witt_prefilter:
-        fields.append(f"canonicalized_isomorphism_classes={len(context.canonical_records)}")
+        fields.append(f"canonicalized_isomorphism_classes: {len(context.canonical_records)}")
     else:
-        fields.append(f"total_isomorphism_classes={len(context.canonical_records)}")
-    return " ".join(fields)
+        fields.append(f"total_isomorphism_classes: {len(context.canonical_records)}")
+    fields.append("-")
+    return "\n".join(fields)
 
 
 def parse_enumeration_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Enumerate hyperelliptic curves and write sparse L-polynomial data to SQLite.")
     parser.add_argument("--p", type=int, required=True, help="Odd prime field characteristic.")
     parser.add_argument("--genus", "-g", type=int, required=True, help="Curve genus.")
-    parser.add_argument("--max-sparsity", type=int, required=True, help="Maximum allowed sparsity among a_1, ..., a_{g-1}.")
+    parser.add_argument(
+        "--max-sparsity",
+        type=int,
+        help="Optional maximum allowed sparsity among a_1, ..., a_{g-1}. Omit to compute without a sparsity restriction.",
+    )
     parser.add_argument(
         "--degree-model",
         choices=("odd", "even", "both"),
         default="both",
         help="Enumerate degree 2g+1 models, degree 2g+2 models, or both.",
     )
-    parser.add_argument("--monic", action="store_true", help="Only enumerate monic models.")
     parser.add_argument("--out", type=Path, help="SQLite output path. Defaults to data_gen/results/p{p}_g{g}_s_{max}.sqlite.")
     parser.add_argument("--limit", type=int, help="Optional maximum number of raw coefficient vectors to process.")
     parser.add_argument(
@@ -1602,6 +1840,35 @@ def parse_enumeration_args() -> argparse.Namespace:
         type=int,
         default=1000,
         help="Print progress every N raw coefficient vectors. Use 0 to print only final output.",
+    )
+    parser.add_argument(
+        "--enumeration-mode",
+        choices=("lexicographic", "lexicoskipping"),
+        default="lexicographic",
+        help="Use the normalized lexicographic stream, or adaptively skip ahead after long duplicate/rejection stretches.",
+    )
+    parser.add_argument(
+        "--lexicoskip-drought",
+        type=int,
+        default=1000,
+        help="In lexicoskipping mode, skip after this many processed vectors without a new canonical isomorphism class.",
+    )
+    parser.add_argument(
+        "--lexicoskip-initial-skip",
+        type=int,
+        default=1000,
+        help="Initial number of lexicographic positions to skip in lexicoskipping mode.",
+    )
+    parser.add_argument(
+        "--lexicoskip-max-skip",
+        type=int,
+        default=1000000,
+        help="Maximum adaptive skip size in lexicoskipping mode.",
+    )
+    parser.add_argument(
+        "--lexicoskip-min-classes",
+        type=int,
+        help="Do not activate lexicoskipping until this many canonical isomorphism classes have been found. Defaults to an estimate from p and genus.",
     )
     parser.add_argument(
         "--hasse-witt-prefilter",
@@ -1612,9 +1879,32 @@ def parse_enumeration_args() -> argparse.Namespace:
 
 
 def run_enumeration_from_args(args: argparse.Namespace) -> None:
+    if args.lexicoskip_drought < 1:
+        raise ValueError("lexicoskip drought must be positive")
+    if args.lexicoskip_initial_skip < 1:
+        raise ValueError("lexicoskip initial skip must be positive")
+    if args.lexicoskip_max_skip < 1:
+        raise ValueError("lexicoskip max skip must be positive")
+    if args.lexicoskip_min_classes is not None and args.lexicoskip_min_classes < 0:
+        raise ValueError("lexicoskip min classes must be nonnegative")
+    lexicoskip_min_classes = (
+        args.lexicoskip_min_classes
+        if args.lexicoskip_min_classes is not None
+        else default_lexicoskip_min_classes(args.p, args.genus)
+    )
+
     sqlite_path = args.out if args.out is not None else default_sqlite_path(args.p, args.genus, args.max_sparsity)
     sqlite_path.parent.mkdir(parents=True, exist_ok=True)
 
+    total = total_coefficient_vectors(
+        prime=args.p,
+        genus=args.genus,
+        degree_model=args.degree_model,
+        limit=args.limit,
+    )
+    stats: dict[str, int] = {"processed": 0, "skipped": 0, "position": 0}
+    sparse_presentations = 0
+    timing: Optional[dict[str, object]] = None
     context = EnumerationContext(
         prime=args.p,
         genus=args.genus,
@@ -1622,41 +1912,101 @@ def run_enumeration_from_args(args: argparse.Namespace) -> None:
         hasse_witt_prefilter=args.hasse_witt_prefilter,
     )
     try:
-        total = total_coefficient_vectors(
-            prime=args.p,
-            genus=args.genus,
-            degree_model=args.degree_model,
-            monic=args.monic,
-            limit=args.limit,
-        )
-        vectors = coefficient_vectors(
-            prime=args.p,
-            genus=args.genus,
-            degree_model=args.degree_model,
-            monic=args.monic,
-            limit=args.limit,
-        )
+        next_progress = next_progress_threshold(0, total, args.progress_interval)
+        print(progress_line(0, total, 0, 0, context, args.max_sparsity), flush=True)
 
-        stats: dict[str, int] = {"processed": 0}
-        sparse_presentations = 0
-        print(progress_line(0, total, 0, context, args.max_sparsity), flush=True)
-        for vector in vectors:
-            result = context.process_polynomial_for_output(vector, max_sparsity=args.max_sparsity)
-            status = str(result["status"])
-            stats["processed"] += 1
-            stats[status] = stats.get(status, 0) + 1
+        if args.enumeration_mode == "lexicographic":
+            vectors = coefficient_vectors(
+                prime=args.p,
+                genus=args.genus,
+                degree_model=args.degree_model,
+                limit=args.limit,
+            )
+            for vector in vectors:
+                result = context.process_polynomial_for_output(vector, max_sparsity=args.max_sparsity)
+                status = str(result["status"])
+                stats["processed"] += 1
+                stats["position"] = stats["processed"]
+                stats[status] = stats.get(status, 0) + 1
 
-            if status == "sparse" or (status == "duplicate" and result.get("previous_status") == "sparse"):
-                sparse_presentations += 1
+                if status == "sparse" or (status == "duplicate" and result.get("previous_status") == "sparse"):
+                    sparse_presentations += 1
 
-            if should_print_progress(stats["processed"], total, args.progress_interval):
-                print(
-                    progress_line(stats["processed"], total, sparse_presentations, context, args.max_sparsity),
-                    flush=True,
+                if stats["position"] >= next_progress:
+                    print(
+                        progress_line(
+                            stats["position"],
+                            total,
+                            stats["skipped"],
+                            sparse_presentations,
+                            context,
+                            args.max_sparsity,
+                        ),
+                        flush=True,
+                    )
+                    next_progress = next_progress_threshold(stats["position"], total, args.progress_interval)
+        else:
+            position = 0
+            drought = 0
+            skip_size = args.lexicoskip_initial_skip
+            while position < total:
+                vector = coefficient_vector_at_index(
+                    prime=args.p,
+                    genus=args.genus,
+                    degree_model=args.degree_model,
+                    index=position,
                 )
+                result = context.process_polynomial_for_output(vector, max_sparsity=args.max_sparsity)
+                status = str(result["status"])
+                stats["processed"] += 1
+                stats[status] = stats.get(status, 0) + 1
 
-        timing = context.timing_summary()
+                if status == "sparse" or (status == "duplicate" and result.get("previous_status") == "sparse"):
+                    sparse_presentations += 1
+
+                position += 1
+                if is_new_isomorphism_class_result(result):
+                    drought = 0
+                    skip_size = args.lexicoskip_initial_skip
+                elif len(context.canonical_records) >= lexicoskip_min_classes:
+                    drought += 1
+                    if drought >= args.lexicoskip_drought and position < total:
+                        jump = min(skip_size, total - position)
+                        position += jump
+                        stats["skipped"] += jump
+                        drought = 0
+                        skip_size = min(skip_size * 2, args.lexicoskip_max_skip)
+                else:
+                    drought = 0
+
+                stats["position"] = position
+                if stats["position"] >= next_progress:
+                    print(
+                        progress_line(
+                            stats["position"],
+                            total,
+                            stats["skipped"],
+                            sparse_presentations,
+                            context,
+                            args.max_sparsity,
+                        ),
+                        flush=True,
+                    )
+                    next_progress = next_progress_threshold(stats["position"], total, args.progress_interval)
+
     finally:
+        context.write_enumeration_summary(
+            max_sparsity=args.max_sparsity,
+            degree_model=args.degree_model,
+            enumeration_mode=args.enumeration_mode,
+            limit=args.limit,
+            total_coefficient_vectors=total,
+            processed=stats["processed"],
+            skipped=stats["skipped"],
+            final_position=stats["position"],
+            sparse_presentations=sparse_presentations,
+        )
+        timing = context.timing_summary()
         context.close_sqlite()
 
     print(f"output: {sqlite_path}")

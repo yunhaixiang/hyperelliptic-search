@@ -69,6 +69,12 @@ There is also a command-line runner:
 python3 -m data_gen.hyperelliptic --p 5 --genus 2 --max-sparsity 2
 ```
 
+Omit `--max-sparsity` to compute without a sparsity restriction:
+
+```bash
+python3 -m data_gen.hyperelliptic --p 5 --genus 2
+```
+
 For high-genus sparse search, put the Hasse-Witt filter before canonicalization:
 
 ```bash
@@ -77,19 +83,29 @@ python3 -m data_gen.hyperelliptic --p 5 --genus 20 --max-sparsity 1 --hasse-witt
 
 By default, the command uses SQLite BLOB orbit lookup and stores orbit keys for complete canonical-class enumeration. With `--hasse-witt-prefilter`, it runs the Hasse-Witt filter before canonicalization; Hasse-Witt failures are counted as `rejected_hasse_witt_uncanonicalized` and are not inserted into the canonical-class tables. Hasse-Witt survivors still use SQLite orbit lookup before full canonicalization.
 
+The runner uses a fixed leading-coefficient normalization: degree `2g+1` models are enumerated monic, and degree `2g+2` models are enumerated with leading coefficient `1` and the smallest nonsquare in `F_p`.
+
+The default enumeration mode is `--enumeration-mode lexicographic`. `--enumeration-mode lexicoskipping` follows the same normalized lexicographic order, but after a configurable drought without a new canonical isomorphism class, it skips ahead by an adaptive jump size. Skipping is inactive until enough canonical classes have been found; control this with `--lexicoskip-min-classes`, or omit it to use the estimate `max(100, min(5000, p^min(g,5)))`. The other knobs are `--lexicoskip-drought`, `--lexicoskip-initial-skip`, and `--lexicoskip-max-skip`.
+
 The runner prints progress as:
 
 ```text
-progress: processed/total sparse_presentations=N sparse_isomorphism_classes=M total_isomorphism_classes=K
+progress: processed/total
+skipped: S
+sparse_presentations: N
+sparse_isomorphism_classes: M
+total_isomorphism_classes: K
+-
 ```
 
 With `--hasse-witt-prefilter`, Hasse-Witt failures are not canonicalized, so the progress line prints `canonicalized_isomorphism_classes=K` instead of `total_isomorphism_classes=K`.
 
 The SQLite output uses:
 
-- `orbit_cache`: BLOB lookup table for `(rational_branch_count, orbit_key) -> canonical_key`.
+- `orbit_cache`: BLOB lookup table for `(rational_branch_count, ground_point_count, orbit_key) -> canonical_key`.
 - `curve_cache`: per-canonical-key computation results for the output file's sparsity bound, including rational branch count, L-polynomial data, and rejection status.
 - `sparse_curves`: sparse survivors with their exact `a_1, ..., a_g` coefficients.
+- `enumeration_summary`: one-row run summary with `prime`, `genus`, `max_sparsity`, whether `hasse_witt_prefilter` was enabled, enumeration settings, progress counts, and timing fields.
 
 In `curve_cache` and `sparse_curves`, `coefficients` are readable JSON integer lists. In `sparse_curves`, the output `lpoly` is also readable JSON. Internal cache keys and intermediate L-polynomial fields are stored as compact BLOBs.
 
