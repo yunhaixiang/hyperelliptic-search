@@ -60,10 +60,14 @@ def generate_and_score(args, classname):
                 if chunk:  # extend incrementally to manage memory
                     data.extend(chunk)
     else:
-        for t in batch_counts:
+        total = 0
+        for idx, t in enumerate(batch_counts):
             d = classname._batch_generate_and_score(t, args.N)
             if d is not None:
                 data.extend(d)
+            total += t
+            if idx == 0 or total % max(BATCH, 1000) == 0 or total == args.gensize:
+                logger.info(f"Generated and scored initial data: {total} / {args.gensize}; valid kept so far: {len(data)}")
     return data
 
 

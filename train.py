@@ -76,13 +76,20 @@ if __name__ == "__main__":
         os.environ["MODAL_EXP_ID"] = time.strftime("%Y_%m_%d_%H_%M_%S")
         args.exp_id = os.environ["MODAL_EXP_ID"]
 
-    args.device = "cpu" if args.cpu else ("mps" if torch.backends.mps.is_available() else "cuda")
+    if args.cpu:
+        args.device = "cpu"
+    elif torch.cuda.is_available():
+        args.device = "cuda"
+    elif torch.backends.mps.is_available():
+        args.device = "mps"
+    else:
+        args.device = "cpu"
     if args.device == "cuda":
         torch.cuda.manual_seed_all(args.seed)
     if args.device == "mps":
         torch.mps.manual_seed(args.seed)
 
-    fused = True if args.device in ["cuda", "mps"] else False
+    fused = True if args.device == "cuda" else False
 
     logger = initialize_exp(args)
     if not os.path.exists(args.dump_path):

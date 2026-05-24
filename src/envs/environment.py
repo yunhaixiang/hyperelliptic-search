@@ -122,12 +122,18 @@ def do_score(data, args, executor=None):
     """
     n_invalid = 0
     processed_data = []
+    if not data:
+        return [], 0, []
     if not args.process_pool:
-        for d in data:
-            # warning, change the original list
-            res, invalid = _do_score(d, args.always_search, args.redeem_only)
-            n_invalid += invalid
-            processed_data.append(res)
+        batch_score = getattr(data[0], "_batch_score_datapoints", None)
+        if batch_score is not None:
+            processed_data, n_invalid = batch_score(data, args.always_search, args.redeem_only)
+        else:
+            for d in data:
+                # warning, change the original list
+                res, invalid = _do_score(d, args.always_search, args.redeem_only)
+                n_invalid += invalid
+                processed_data.append(res)
     else:
         pars = data[0]._save_class_params()
 

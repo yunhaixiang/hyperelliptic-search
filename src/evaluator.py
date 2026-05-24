@@ -76,7 +76,7 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
     all_processed_data = []
     results_lock = threading.Lock()
 
-    executor = ProcessPoolExecutor(max_workers=min(MAX_WORKERS, args.num_workers))
+    executor = ProcessPoolExecutor(max_workers=min(MAX_WORKERS, args.num_workers)) if args.process_pool else None
 
     def process_batches(batches):
         nonlocal total_invalid
@@ -88,7 +88,7 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
             total_invalid += n_invalid
             all_processed_data.extend(processed_data)
 
-    with cpu_sink(process_batches, decouple=True) as sink:
+    with cpu_sink(process_batches, decouple=args.process_pool) as sink:
         pending_batches = []
 
         for i in range(todo):
@@ -96,7 +96,7 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
                 curr_temp = temp + 0.1 * np.random.randint(temp_span + 1)
             else:
                 curr_temp = temp
-            if i % 100 == 0:
+            if i % 10 == 0:
                 with results_lock:
                     scored_so_far = len(results)
                 logger.info(f"{i*sample_batch_size} / {todo * sample_batch_size} samples generated, {scored_so_far} scored")
@@ -116,7 +116,8 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
         if pending_batches:
             sink.submit(pending_batches)
 
-    executor.shutdown(wait=True)
+    if executor is not None:
+        executor.shutdown(wait=True)
 
     do_stats(total_invalid, all_processed_data)
 

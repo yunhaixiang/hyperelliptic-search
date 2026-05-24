@@ -2,6 +2,8 @@ __pycache__/
 
 downloads/
 checkpoint/
+results/
+exports/
 
 .ipynb_checkpoints
 
@@ -11,6 +13,14 @@ checkpoint/
 
 .pyre/
 
-results/
-
 .DS_Store
+
+# Generated or copied research data. Keep small provenance notes trackable.
+data/**/*.pkl
+data/**/*.sqlite
+data/**/*.sqlite-shm
+data/**/*.sqlite-wal
+data/**/*.npy
+data/**/*.npz
+data/**/*.pt
+data/**/*.pth
