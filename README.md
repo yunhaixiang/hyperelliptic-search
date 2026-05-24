@@ -29,9 +29,10 @@ so `c1 = 0` gives a trinomial L-polynomial.
 Implemented now:
 
 - fixed-base coefficient digit tokenization, so the vocabulary size does not grow with `p`
+- per-example prime tokenization, using a leading `P` block before the coefficient blocks
 - deterministic primality checking for `--p`
 - squarefreeness checks for the quintic model
-- fast NumPy Legendre-table scoring of `c1 = sum_x chi(f(x))`
+- Sage `count_points(1)` scoring of `c1`
 - clean score: invalid curves score `-1`, exact `c1 = 0` hits score `10`, misses score `1 - |c1|/(4*sqrt(p))`
 - configurable coefficient-mutation local search minimizing `|c1|`
 - environment registration in `src/envs/__init__.py`
@@ -40,8 +41,7 @@ Implemented now:
 Deferred:
 
 - canonicalization by isomorphism class
-- full L-polynomial computation beyond `c1`
-- C++/FLINT batch scoring for primes too large for a Legendre table
+- full L-polynomial computation during training; compute `c2` afterward for exported trinomial rows
 
 ## Example Shape
 
@@ -67,11 +67,21 @@ python train.py \
     --inc_temp 0.05 \
     --local_search_steps 4 \
     --local_search_batch_size 32 \
-    --score_batch_size 8 \
-    --score_x_chunk_size 32768
+    --score_batch_size 32 \
+    --sage_python /Applications/SageMath-10-6.app/Contents/MacOS/Python \
+    --sage_dot_dir /private/tmp/sage-dot-cache
 ```
 
-The NumPy scorer precomputes a Legendre table of size `p`, capped by `--max_legendre_table_p` and defaulting to `10000000`.
+Scoring and local search use a persistent Sage worker. The main Axplorer process still uses the normal Python environment for PyTorch.
+
+Optional initial data can be loaded from a SQLite `curves` table with columns
+`a0`, `a1`, `a2`, and `a3`, plus either a `p`/`prime` column or a
+`run_metadata` row named `prime`:
+
+```bash
+--initial_data_sqlite exports/g2_trinomial_p1000003_batch_trinomial.sqlite \
+--initial_data_max_rows 1000
+```
 
 ## Python Data Generation
 

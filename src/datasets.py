@@ -71,11 +71,36 @@ def generate_and_score(args, classname):
     return data
 
 
-def select_best(n, data):
+def load_seed_data(args, classname):
+    paths_arg = getattr(args, "initial_data_sqlite", "")
+    if not paths_arg:
+        return []
+    loader = getattr(classname, "load_initial_data", None)
+    if loader is None:
+        raise ValueError(f"{classname.__name__} does not support --initial_data_sqlite")
+
+    paths = [p.strip() for p in paths_arg.split(",") if p.strip()]
+    data = []
+    for path in paths:
+        chunk = loader(path, args.N, max_rows=getattr(args, "initial_data_max_rows", 0), pars=classname._save_class_params())
+        logger.info(f"Loaded initial data from {path}: {len(chunk)} valid examples")
+        data.extend(chunk)
+    logger.info(f"Loaded initial data from {len(paths)} file(s): {len(data)} valid examples total")
+    return data
+
+
+def selection_score(d, args=None):
+    scorer = getattr(d, "selection_score", None)
+    if scorer is not None:
+        return scorer()
+    return d.score
+
+
+def select_best(n, data, args=None):
     if len(data) <= n:
         random.shuffle(data)
         return data
-    sorted_data = sorted(data, key=lambda x: x.score, reverse=True)[:n]
+    sorted_data = sorted(data, key=lambda x: selection_score(x, args), reverse=True)[:n]
     random.shuffle(sorted_data)
     return sorted_data
 
@@ -118,9 +143,9 @@ def update_datasets(args, data, train_set, test_set, train_path, test_path):
         if aft / (bef + 1) < 0.9:
             inc_temp = True
     if args.new_proportion > 0.0:
-        new_data = select_best(int(args.new_proportion * args.pop_size), data)
+        new_data = select_best(int(args.new_proportion * args.pop_size), data, args=args)
     else:
-        new_data = select_best(args.pop_size, data)
+        new_data = select_best(args.pop_size, data, args=args)
 
     if len(new_data) >= 2 * args.ntest or test_set is None:
         new_train, test_set = make_train_test(new_data, args.ntest)
@@ -132,9 +157,9 @@ def update_datasets(args, data, train_set, test_set, train_path, test_path):
         train_set, new_train = compute_unique_data(train_set, new_train)
         logger.info(f"Unique data computed for original train set: {len(train_set)}, generated train set: {len(new_train)}")
     if args.new_proportion > 0.0:
-        train_set = select_best(int((1.0 - args.new_proportion) * args.pop_size), train_set) + new_train
+        train_set = select_best(int((1.0 - args.new_proportion) * args.pop_size), train_set, args=args) + new_train
     else:
-        train_set = select_best(args.pop_size, train_set + new_train)
+        train_set = select_best(args.pop_size, train_set + new_train, args=args)
     logger.info(f"Final train and test generated. Size are train: {len(train_set)}, test {len(test_set)}")
 
     pickle.dump(test_set, open(test_path, "wb"))
@@ -150,7 +175,11 @@ def load_initial_data(args, classname):
         train_set = pickle.load(open(train_data_path, "rb"))
         test_set = pickle.load(open(test_data_path, "rb"))
     else:
-        data = generate_and_score(args, classname=classname)
+        data = load_seed_data(args, classname)
+        generated = generate_and_score(args, classname=classname)
+        if data:
+            logger.info(f"Combining initial data ({len(data)}) with generated data ({len(generated)})")
+        data.extend(generated)
         test_set = []
         train_set = []
         train_set, test_set, _ = update_datasets(args, data, train_set, test_set, train_data_path, test_data_path)
