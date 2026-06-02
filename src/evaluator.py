@@ -105,7 +105,15 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
             X_init[:, 0] = stoi["BOS"]
             X_init = X_init.to(args.device)
             top_k = args.top_k if args.top_k != -1 else None
-            batch_numpy = model.generate(X_init, args.max_len + 1, temperature=curr_temp, top_k=top_k, do_sample=True).cpu().numpy()
+            allowed_token_ids_by_pos = getattr(env.tokenizer, "allowed_token_ids_by_pos", None)
+            batch_numpy = model.generate(
+                X_init,
+                args.max_len + 1,
+                temperature=curr_temp,
+                top_k=top_k,
+                do_sample=True,
+                allowed_token_ids_by_pos=allowed_token_ids_by_pos,
+            ).cpu().numpy()
 
             pending_batches.append(batch_numpy)
 

@@ -139,7 +139,7 @@ class Transformer(nn.Module):
         return logits, loss, presents_kv
 
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None):
+    def generate(self, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None, allowed_token_ids_by_pos=None):
         self.eval()
 
         past_kv = None
@@ -156,6 +156,13 @@ class Transformer(nn.Module):
                     idx_cond = idx[:, -1].unsqueeze(1)
                 logits, _, past_kv = self(idx_cond, past_kv=past_kv)
                 logits = logits[:, -1, :] / temperature
+                if allowed_token_ids_by_pos is not None:
+                    next_pos = idx.size(1)
+                    if next_pos < len(allowed_token_ids_by_pos) and allowed_token_ids_by_pos[next_pos] is not None:
+                        allowed = torch.as_tensor(allowed_token_ids_by_pos[next_pos], dtype=torch.long, device=logits.device)
+                        masked = torch.full_like(logits, -float("inf"))
+                        masked[:, allowed] = logits[:, allowed]
+                        logits = masked
                 if top_k is not None:
                     v, _ = torch.topk(logits, top_k)
                     logits[logits < v[:, [-1]]] = -float("inf")
@@ -179,6 +186,8 @@ class Transformer(nn.Module):
 
 @torch.inference_mode()
 def evaluate(model, dataset, device, batch_size=50, max_batches=None):
+    if len(dataset) == 0:
+        return float("nan")
     model.eval()
     loader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0, collate_fn=dataset.collate_fn)
     losses = []

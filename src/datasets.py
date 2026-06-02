@@ -1,6 +1,7 @@
 import os
 import pickle
 import random
+from glob import glob
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 from logging import getLogger
@@ -79,10 +80,20 @@ def load_seed_data(args, classname):
     if loader is None:
         raise ValueError(f"{classname.__name__} does not support --initial_data_sqlite")
 
-    paths = [p.strip() for p in paths_arg.split(",") if p.strip()]
+    paths = []
+    for part in [p.strip() for p in paths_arg.split(",") if p.strip()]:
+        matches = sorted(glob(part))
+        if matches:
+            paths.extend(matches)
+        else:
+            paths.append(part)
     data = []
     for path in paths:
-        chunk = loader(path, args.N, max_rows=getattr(args, "initial_data_max_rows", 0), pars=classname._save_class_params())
+        try:
+            chunk = loader(path, args.N, max_rows=getattr(args, "initial_data_max_rows", 0), pars=classname._save_class_params())
+        except Exception as exc:
+            logger.warning(f"Skipping initial data file {path}: {type(exc).__name__}: {exc}")
+            continue
         logger.info(f"Loaded initial data from {path}: {len(chunk)} valid examples")
         data.extend(chunk)
     logger.info(f"Loaded initial data from {len(paths)} file(s): {len(data)} valid examples total")

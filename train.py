@@ -122,6 +122,12 @@ if __name__ == "__main__":
     if args.data_generation_only:
         logger.info("Data generation only mode. Exiting...")
         exit(0)
+    if len(train_set) == 0:
+        raise RuntimeError(
+            "No training examples were generated or loaded. "
+            "For hard environments, lower the bootstrap threshold, increase gensize/search, "
+            "or provide initial data before training."
+        )
     train_data_path = os.path.join(args.dump_path, "train_data.pkl")
     test_data_path = os.path.join(args.dump_path, "test_data.pkl")
 

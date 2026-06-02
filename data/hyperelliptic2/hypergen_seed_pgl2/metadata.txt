@@ -1,0 +1,9 @@
+input_sqlite=data/hypergen/all_results.sqlite
+table=orbit_presentations
+primes=3,5,7,11
+max_genus=0
+candidates=133501
+valid=133447
+skipped=0
+train=132447
+test=1000

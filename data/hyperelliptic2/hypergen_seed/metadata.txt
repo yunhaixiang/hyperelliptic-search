@@ -1,0 +1,9 @@
+input_sqlite=data/hypergen/all_results.sqlite
+table=canonical_classes
+primes=3,5,7,11
+max_genus=0
+candidates=13133
+valid=13079
+skipped=0
+train=12979
+test=100
