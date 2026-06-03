@@ -234,7 +234,15 @@ def encode_datapoints(datapoints, tokenizer, max_len, label):
         key = _token_cache_key(tokenizer, datapoint, max_len)
         cached_key = getattr(datapoint, "_encoded_token_cache_key", None)
         cached_value = getattr(datapoint, "_encoded_token_cache_value", None)
-        if cached_key == key and cached_value is not None:
+        legacy_key_match = (
+            isinstance(cached_key, tuple)
+            and len(cached_key) == 3
+            and len(key) == 2
+            and cached_key[0] == key[0]
+            and cached_key[2] == key[1]
+        )
+        if (cached_key == key or legacy_key_match) and cached_value is not None:
+            datapoint._encoded_token_cache_key = key
             encoded.append(cached_value)
             hits += 1
             continue
@@ -377,7 +385,9 @@ class InfiniteDataLoader:
             train_sampler = torch.utils.data.RandomSampler(dataset, replacement=True, num_samples=int(1e10))
         else:
             weights = torch.as_tensor(sample_weights, dtype=torch.double)
-            train_sampler = torch.utils.data.WeightedRandomSampler(weights, replacement=True, num_samples=int(1e10))
+            batch_size = int(kwargs.get("batch_size", 1))
+            num_samples = max(len(dataset), batch_size)
+            train_sampler = torch.utils.data.WeightedRandomSampler(weights, replacement=True, num_samples=num_samples)
         self.train_loader = DataLoader(dataset, sampler=train_sampler, collate_fn=dataset.collate_fn, **kwargs)
         self.data_iter = iter(self.train_loader)
         self._closed = False
