@@ -6,7 +6,14 @@ from logging import getLogger
 import numpy as np
 import torch
 
-from src.datasets import CharDataset, InfiniteDataLoader, load_initial_data, make_training_sample_weights, update_datasets
+from src.datasets import (
+    CharDataset,
+    InfiniteDataLoader,
+    encode_datapoints,
+    load_initial_data,
+    make_training_sample_weights,
+    update_datasets,
+)
 from src.envs import ENVS, build_env
 from src.envs.environment import do_stats
 from src.evaluator import sample_and_score
@@ -172,8 +179,8 @@ if __name__ == "__main__":
             torch.mps.empty_cache()
 
         # tokenize
-        train_words = [env.tokenizer.encode(d) for d in train_set]
-        test_words = [env.tokenizer.encode(d) for d in test_set]
+        train_words = encode_datapoints(train_set, env.tokenizer, args.max_len, "train")
+        test_words = encode_datapoints(test_set, env.tokenizer, args.max_len, "test")
         # data loaders
         train_dataset = CharDataset(train_words, args.max_len, stoi)
         test_dataset = CharDataset(test_words, args.max_len, stoi)

@@ -1,6 +1,7 @@
 import os
 import pickle
 import random
+import time
 from glob import glob
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
@@ -211,6 +212,42 @@ def make_training_sample_weights(train_set, args):
         f"max_repeat={args.frontier_max_repeat}"
     )
     return weights
+
+
+def _token_cache_key(tokenizer, datapoint, max_len):
+    return (
+        tokenizer.__class__.__name__,
+        int(max_len),
+        getattr(datapoint, "features", None),
+    )
+
+
+def encode_datapoints(datapoints, tokenizer, max_len, label):
+    encoded = []
+    hits = 0
+    misses = 0
+    start_time = time.time()
+    for datapoint in datapoints:
+        key = _token_cache_key(tokenizer, datapoint, max_len)
+        cached_key = getattr(datapoint, "_encoded_token_cache_key", None)
+        cached_value = getattr(datapoint, "_encoded_token_cache_value", None)
+        if cached_key == key and cached_value is not None:
+            encoded.append(cached_value)
+            hits += 1
+            continue
+
+        value = tokenizer.encode(datapoint)
+        datapoint._encoded_token_cache_key = key
+        datapoint._encoded_token_cache_value = value
+        encoded.append(value)
+        misses += 1
+
+    elapsed = time.time() - start_time
+    logger.info(
+        f"Encoded {label}: {len(datapoints)} examples in {elapsed:.2f}s "
+        f"({hits} cache hits, {misses} misses)"
+    )
+    return encoded
 
 
 def select_best(n, data, args=None):
