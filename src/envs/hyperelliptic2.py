@@ -203,6 +203,9 @@ class Hyperelliptic2Tokenizer(Tokenizer):
         tokens.append(self.stoi["EOS"])
         return np.array(tokens, dtype=np.int32)
 
+    def cache_key_for_datapoint(self, datapoint, max_len):
+        return (self.__class__.__name__, getattr(datapoint, "features", None))
+
     def decode(self, token_seq_to_decode):
         try:
             seq = [int(t) for t in token_seq_to_decode]
@@ -212,9 +215,11 @@ class Hyperelliptic2Tokenizer(Tokenizer):
                 return None
             pos = 2
             necklaces = []
+            eos_pos = None
             while pos < len(seq):
                 token = self.itos.get(seq[pos])
                 if token == "EOS":
+                    eos_pos = pos
                     break
                 if not isinstance(token, str) or not token.startswith("D"):
                     return None
@@ -242,6 +247,9 @@ class Hyperelliptic2Tokenizer(Tokenizer):
                 elif separator != "EOS":
                     return None
 
+            if eos_pos is None:
+                return None
+
             if tuple(sorted(necklaces)) != tuple(necklaces):
                 return None
 
@@ -256,6 +264,9 @@ class Hyperelliptic2Tokenizer(Tokenizer):
             datapoint.p = self.p
             datapoint.degree = degree
             datapoint.calc_features()
+            clean_tokens = np.array(seq[: eos_pos + 1], dtype=np.int32)
+            datapoint._encoded_token_cache_key = self.cache_key_for_datapoint(datapoint, None)
+            datapoint._encoded_token_cache_value = clean_tokens
             return datapoint
         except Exception:
             return None

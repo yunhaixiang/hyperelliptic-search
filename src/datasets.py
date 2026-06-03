@@ -215,6 +215,9 @@ def make_training_sample_weights(train_set, args):
 
 
 def _token_cache_key(tokenizer, datapoint, max_len):
+    key_fn = getattr(tokenizer, "cache_key_for_datapoint", None)
+    if key_fn is not None:
+        return key_fn(datapoint, max_len)
     return (
         tokenizer.__class__.__name__,
         int(max_len),
