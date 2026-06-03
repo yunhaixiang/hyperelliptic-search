@@ -6,7 +6,7 @@ from logging import getLogger
 import numpy as np
 import torch
 
-from src.datasets import CharDataset, InfiniteDataLoader, load_initial_data, update_datasets
+from src.datasets import CharDataset, InfiniteDataLoader, load_initial_data, make_training_sample_weights, update_datasets
 from src.envs import ENVS, build_env
 from src.envs.environment import do_stats
 from src.evaluator import sample_and_score
@@ -48,6 +48,7 @@ def get_parser():
 
     # optimization
     parser.add_argument("--batch_size", type=int, default=32, help="batch size during optimization")
+    parser.add_argument("--eval_batch_size", type=int, default=0, help="batch size during evaluation; 0 uses --batch_size")
     parser.add_argument("--learning_rate", type=float, default=5e-4, help="learning rate")
     parser.add_argument("--weight_decay", type=float, default=0.01, help="weight decay")
     # evaluation against known "good sequences"
@@ -57,6 +58,15 @@ def get_parser():
     parser.add_argument("--inc_temp", type=float, default=0.0, help="temperature")
     parser.add_argument("--keep_only_unique", type=bool_flag, default="true", help="keep only unique data")
     parser.add_argument("--save_best", type=bool_flag, default="false", help="save best model based on test loss")
+    parser.add_argument("--genus_sampling", type=str, default="none", choices=["none", "frontier"], help="genus-aware training batch sampler")
+    parser.add_argument("--frontier_top_width", type=int, default=2, help="frontier sampler top bucket width below current max genus")
+    parser.add_argument("--frontier_high_width", type=int, default=6, help="frontier sampler high bucket width below current max genus")
+    parser.add_argument("--frontier_low_cutoff", type=int, default=4, help="frontier sampler low bucket cutoff genus")
+    parser.add_argument("--frontier_low_prob", type=float, default=0.10, help="frontier sampler probability for low bucket")
+    parser.add_argument("--frontier_mid_prob", type=float, default=0.45, help="frontier sampler probability for mid bucket")
+    parser.add_argument("--frontier_high_prob", type=float, default=0.35, help="frontier sampler probability for high bucket")
+    parser.add_argument("--frontier_top_prob", type=float, default=0.10, help="frontier sampler probability for top bucket")
+    parser.add_argument("--frontier_max_repeat", type=int, default=20, help="cap expected repeats per datapoint per epoch; 0 disables cap")
 
     # path and ports
     parser.add_argument("--dump_path", type=str, default="checkpoint", help="Experiment dump path")
@@ -167,6 +177,7 @@ if __name__ == "__main__":
         # data loaders
         train_dataset = CharDataset(train_words, args.max_len, stoi)
         test_dataset = CharDataset(test_words, args.max_len, stoi)
+        train_sample_weights = make_training_sample_weights(train_set, args)
         force_release_memory()
 
         if args.device == "cuda":
@@ -178,7 +189,13 @@ if __name__ == "__main__":
                 f"Memory allocated: {torch.mps.current_allocated_memory()/(1024*1024):.2f}MB, reserved: {torch.mps.driver_allocated_memory()/(1024*1024):.2f}MB"
             )
 
-        batch_loader = InfiniteDataLoader(train_dataset, batch_size=args.batch_size, pin_memory=args.device == "cuda", num_workers=0)
+        batch_loader = InfiniteDataLoader(
+            train_dataset,
+            sample_weights=train_sample_weights,
+            batch_size=args.batch_size,
+            pin_memory=args.device == "cuda",
+            num_workers=0,
+        )
         try:
             best_loss = train(model, args, batch_loader, optimizer, test_dataset, current_best_loss=best_loss)
         finally:

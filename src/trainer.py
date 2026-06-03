@@ -54,7 +54,10 @@ def train(model, args, loader, optim, test_dataset, current_best_loss=None):
             logger.info(f"step {step + 1} | loss {loss.item():.4f} | steps time {(t1-t0)*1000:.2f}ms")
         if (step + 1) % args.num_eval_steps == 0:
             train_loss = curr_loss / args.num_eval_steps
-            test_loss = evaluate(model, test_dataset, args.device, batch_size=100, max_batches=10)
+            if args.device == "mps":
+                torch.mps.empty_cache()
+            eval_batch_size = args.eval_batch_size if args.eval_batch_size > 0 else args.batch_size
+            test_loss = evaluate(model, test_dataset, args.device, batch_size=eval_batch_size, max_batches=10)
             logger.info(f"step {step + 1} train loss: {train_loss} test loss: {test_loss}")
             if args.save_best and test_loss < best_loss:
                 model_path = os.path.join(args.dump_path, "model.pt")

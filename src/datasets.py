@@ -107,6 +107,112 @@ def selection_score(d, args=None):
     return d.score
 
 
+def _datapoint_genus(d):
+    genus = getattr(d, "genus", None)
+    if genus is not None:
+        return int(genus)
+    score = getattr(d, "score", None)
+    if score is not None and score >= 0:
+        return int(score)
+    return None
+
+
+def _frontier_bucket(genus, max_genus, args):
+    if genus <= args.frontier_low_cutoff:
+        return "low"
+    top_floor = max_genus - args.frontier_top_width
+    high_floor = max_genus - args.frontier_high_width
+    if genus >= top_floor:
+        return "top"
+    if genus >= high_floor:
+        return "high"
+    return "mid"
+
+
+def _cap_weights(weights, max_probability):
+    if max_probability <= 0:
+        return weights
+
+    capped = np.asarray(weights, dtype=np.float64)
+    active = np.ones(len(capped), dtype=bool)
+    remaining_mass = 1.0
+    while True:
+        over = active & (capped > max_probability)
+        if not over.any():
+            break
+        capped[over] = max_probability
+        active[over] = False
+        remaining_mass = 1.0 - capped[~active].sum()
+        if remaining_mass <= 0 or not active.any():
+            break
+        active_sum = capped[active].sum()
+        if active_sum <= 0:
+            capped[active] = remaining_mass / active.sum()
+        else:
+            capped[active] *= remaining_mass / active_sum
+    total = capped.sum()
+    if total <= 0:
+        return weights
+    return capped / total
+
+
+def make_training_sample_weights(train_set, args):
+    if getattr(args, "genus_sampling", "none") == "none":
+        return None
+
+    genera = [_datapoint_genus(d) for d in train_set]
+    valid_genera = [g for g in genera if g is not None]
+    if not valid_genera:
+        logger.warning("genus_sampling requested, but training data has no genus metadata; using uniform sampling")
+        return None
+
+    max_genus = max(valid_genera)
+    bucket_probs = {
+        "low": args.frontier_low_prob,
+        "mid": args.frontier_mid_prob,
+        "high": args.frontier_high_prob,
+        "top": args.frontier_top_prob,
+    }
+    total_prob = sum(bucket_probs.values())
+    if total_prob <= 0:
+        logger.warning("frontier bucket probabilities sum to zero; using uniform sampling")
+        return None
+    bucket_probs = {key: value / total_prob for key, value in bucket_probs.items()}
+
+    buckets = {key: [] for key in bucket_probs}
+    for idx, genus in enumerate(genera):
+        if genus is None:
+            continue
+        buckets[_frontier_bucket(genus, max_genus, args)].append(idx)
+
+    weights = np.zeros(len(train_set), dtype=np.float64)
+    nonempty = {key: indices for key, indices in buckets.items() if indices}
+    present_prob = sum(bucket_probs[key] for key in nonempty)
+    if present_prob <= 0:
+        return None
+
+    for key, indices in nonempty.items():
+        per_item = (bucket_probs[key] / present_prob) / len(indices)
+        weights[indices] = per_item
+
+    epoch_samples = max(1, int(args.max_steps) * int(args.batch_size))
+    max_probability = 0.0
+    if args.frontier_max_repeat > 0:
+        max_probability = float(args.frontier_max_repeat) / epoch_samples
+        weights = _cap_weights(weights, max_probability)
+
+    logger.info(
+        "Frontier genus sampling: "
+        f"Gmax={max_genus}; "
+        f"low={len(buckets['low'])}, mid={len(buckets['mid'])}, "
+        f"high={len(buckets['high'])}, top={len(buckets['top'])}; "
+        f"probs low/mid/high/top="
+        f"{bucket_probs['low']:.3f}/{bucket_probs['mid']:.3f}/{bucket_probs['high']:.3f}/{bucket_probs['top']:.3f}; "
+        f"max_repeat={args.frontier_max_repeat}"
+    )
+    return weights
+
+
 def select_best(n, data, args=None):
     if len(data) <= n:
         random.shuffle(data)
@@ -226,8 +332,12 @@ class InfiniteDataLoader:
     Create a infinite datalaoder in PyTorch
     """
 
-    def __init__(self, dataset, **kwargs):
-        train_sampler = torch.utils.data.RandomSampler(dataset, replacement=True, num_samples=int(1e10))
+    def __init__(self, dataset, sample_weights=None, **kwargs):
+        if sample_weights is None:
+            train_sampler = torch.utils.data.RandomSampler(dataset, replacement=True, num_samples=int(1e10))
+        else:
+            weights = torch.as_tensor(sample_weights, dtype=torch.double)
+            train_sampler = torch.utils.data.WeightedRandomSampler(weights, replacement=True, num_samples=int(1e10))
         self.train_loader = DataLoader(dataset, sampler=train_sampler, collate_fn=dataset.collate_fn, **kwargs)
         self.data_iter = iter(self.train_loader)
         self._closed = False

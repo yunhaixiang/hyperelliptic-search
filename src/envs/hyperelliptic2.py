@@ -145,6 +145,12 @@ def _genus_from_degree(degree):
     return (degree - 2) // 2
 
 
+def _coerce_bool(value):
+    if isinstance(value, bool):
+        return value
+    return bool_flag(str(value))
+
+
 class Hyperelliptic2Tokenizer(Tokenizer):
     """Tokenize y^2=f(x) by the multiset of irreducible-factor necklaces."""
 
@@ -250,6 +256,9 @@ class Hyperelliptic2DataPoint(DataPoint):
     MAX_GENUS = 8
     LOCAL_SEARCH_STEPS = 0
     LOCAL_SEARCH_BATCH_SIZE = 32
+    LOCAL_SEARCH_HIGH_GENUS_BIAS = True
+    LOCAL_SEARCH_GROW_PROB = 0.72
+    LOCAL_SEARCH_REMOVE_PROB = 0.02
     SCORE_BATCH_SIZE = 32
     SAGE_PYTHON = "/Applications/SageMath-10-6.app/Contents/MacOS/Python"
     SAGE_DOT_DIR = "/private/tmp/sage-dot-cache"
@@ -378,16 +387,72 @@ class Hyperelliptic2DataPoint(DataPoint):
         d.calc_features()
         return d
 
+    def _random_growth_degree(self, lower, upper):
+        if upper < lower:
+            return None
+        # Bias toward larger added/replacement factors without making the move deterministic.
+        span = upper - lower + 1
+        return lower + min(span - 1, int((random.random() ** 0.5) * span))
+
+    def _add_higher_degree_factor(self, mutated, total_degree):
+        max_degree = 2 * self.MAX_GENUS + 2
+        remaining = max_degree - total_degree
+        if remaining <= 0:
+            return False
+        lower = 2 if remaining >= 2 else 1
+        degree = self._random_growth_degree(lower, remaining)
+        if degree is None:
+            return False
+        mutated.append(_random_necklace(degree, self.p))
+        return True
+
+    def _replace_by_higher_degree_factor(self, mutated, total_degree):
+        max_degree = 2 * self.MAX_GENUS + 2
+        if total_degree + 1 > max_degree:
+            return False
+        expandable = [
+            idx for idx, necklace in enumerate(mutated)
+            if len(necklace) < max_degree - (total_degree - len(necklace))
+        ]
+        if not expandable:
+            return False
+        idx = random.choice(expandable)
+        old_degree = len(mutated[idx])
+        upper = max_degree - (total_degree - old_degree)
+        new_degree = self._random_growth_degree(old_degree + 1, upper)
+        if new_degree is None:
+            return False
+        mutated[idx] = _random_necklace(new_degree, self.p)
+        return True
+
     def _mutate_necklaces(self, necklaces):
         if not necklaces:
             return None
         move = random.random()
         total_degree = _total_necklace_degree(necklaces)
         mutated = list(necklaces)
-        if move < 0.45:
+
+        if self.LOCAL_SEARCH_HIGH_GENUS_BIAS and move < self.LOCAL_SEARCH_GROW_PROB:
+            if random.random() < 0.65:
+                if self._add_higher_degree_factor(mutated, total_degree):
+                    return tuple(sorted(mutated))
+            if self._replace_by_higher_degree_factor(mutated, total_degree):
+                return tuple(sorted(mutated))
+            if self._add_higher_degree_factor(mutated, total_degree):
+                return tuple(sorted(mutated))
+            return None
+
+        if self.LOCAL_SEARCH_HIGH_GENUS_BIAS:
+            residual = random.random()
+            remove_threshold = self.LOCAL_SEARCH_REMOVE_PROB
+        else:
+            residual = move
+            remove_threshold = 0.10
+
+        if residual < 0.40:
             idx = random.randrange(len(mutated))
             mutated[idx] = _random_necklace(len(mutated[idx]), self.p)
-        elif move < 0.60:
+        elif residual < 0.62:
             splittable = [idx for idx, necklace in enumerate(mutated) if len(necklace) >= 2]
             if not splittable:
                 return None
@@ -395,17 +460,15 @@ class Hyperelliptic2DataPoint(DataPoint):
             degree = len(mutated.pop(idx))
             left = random.randint(1, degree - 1)
             mutated.extend([_random_necklace(left, self.p), _random_necklace(degree - left, self.p)])
-        elif move < 0.75:
+        elif residual < 0.84:
             if len(mutated) < 2:
                 return None
             i, j = sorted(random.sample(range(len(mutated)), 2), reverse=True)
             degree = len(mutated.pop(i)) + len(mutated.pop(j))
             mutated.append(_random_necklace(degree, self.p))
-        elif move < 0.90:
-            if total_degree >= 2 * self.MAX_GENUS + 2:
+        elif residual < 1.0 - remove_threshold:
+            if not self._add_higher_degree_factor(mutated, total_degree):
                 return None
-            degree = random.randint(1, 2 * self.MAX_GENUS + 2 - total_degree)
-            mutated.append(_random_necklace(degree, self.p))
         else:
             if len(mutated) <= 1:
                 return None
@@ -440,8 +503,8 @@ class Hyperelliptic2DataPoint(DataPoint):
             usable = [candidate for candidate in candidates if candidate.score >= 0]
             if not usable:
                 continue
-            next_best = max(usable, key=lambda d: d.score)
-            if best.score >= 0 and next_best.score <= best.score:
+            next_best = max(usable, key=lambda d: (d.score, d.genus, d.degree))
+            if best.score >= 0 and (next_best.score, next_best.degree) <= (best.score, best.degree):
                 continue
             best = next_best
             best_necklaces = best._necklaces()
@@ -454,6 +517,11 @@ class Hyperelliptic2DataPoint(DataPoint):
         cls.MAX_GENUS = int(pars["max_genus"])
         cls.LOCAL_SEARCH_STEPS = int(pars.get("local_search_steps", cls.LOCAL_SEARCH_STEPS))
         cls.LOCAL_SEARCH_BATCH_SIZE = int(pars.get("local_search_batch_size", cls.LOCAL_SEARCH_BATCH_SIZE))
+        cls.LOCAL_SEARCH_HIGH_GENUS_BIAS = _coerce_bool(
+            pars.get("local_search_high_genus_bias", cls.LOCAL_SEARCH_HIGH_GENUS_BIAS)
+        )
+        cls.LOCAL_SEARCH_GROW_PROB = float(pars.get("local_search_grow_prob", cls.LOCAL_SEARCH_GROW_PROB))
+        cls.LOCAL_SEARCH_REMOVE_PROB = float(pars.get("local_search_remove_prob", cls.LOCAL_SEARCH_REMOVE_PROB))
         cls.SCORE_BATCH_SIZE = int(pars.get("score_batch_size", cls.SCORE_BATCH_SIZE))
 
     @classmethod
@@ -463,6 +531,9 @@ class Hyperelliptic2DataPoint(DataPoint):
             "max_genus": cls.MAX_GENUS,
             "local_search_steps": cls.LOCAL_SEARCH_STEPS,
             "local_search_batch_size": cls.LOCAL_SEARCH_BATCH_SIZE,
+            "local_search_high_genus_bias": cls.LOCAL_SEARCH_HIGH_GENUS_BIAS,
+            "local_search_grow_prob": cls.LOCAL_SEARCH_GROW_PROB,
+            "local_search_remove_prob": cls.LOCAL_SEARCH_REMOVE_PROB,
             "score_batch_size": cls.SCORE_BATCH_SIZE,
         }
 
@@ -618,6 +689,9 @@ class Hyperelliptic2Environment(BaseEnvironment):
         self.data_class.MAX_GENUS = params.N
         self.data_class.LOCAL_SEARCH_STEPS = params.local_search_steps
         self.data_class.LOCAL_SEARCH_BATCH_SIZE = params.local_search_batch_size
+        self.data_class.LOCAL_SEARCH_HIGH_GENUS_BIAS = _coerce_bool(params.local_search_high_genus_bias)
+        self.data_class.LOCAL_SEARCH_GROW_PROB = params.local_search_grow_prob
+        self.data_class.LOCAL_SEARCH_REMOVE_PROB = params.local_search_remove_prob
         self.data_class.SCORE_BATCH_SIZE = params.score_batch_size
         self.tokenizer = Hyperelliptic2Tokenizer(
             dataclass=self.data_class,
@@ -632,6 +706,9 @@ class Hyperelliptic2Environment(BaseEnvironment):
         parser.add_argument("--p", type=int, default=3, help="Prime field characteristic")
         parser.add_argument("--local_search_steps", type=int, default=0, help="Necklace-level local-search rounds")
         parser.add_argument("--local_search_batch_size", type=int, default=32, help="Necklace mutations tested per round")
+        parser.add_argument("--local_search_high_genus_bias", type=bool_flag, default=True, help="Bias necklace mutations toward larger genus")
+        parser.add_argument("--local_search_grow_prob", type=float, default=0.72, help="Probability of a genus-increasing local-search mutation")
+        parser.add_argument("--local_search_remove_prob", type=float, default=0.02, help="Probability of a degree-decreasing local-search mutation")
         parser.add_argument("--score_batch_size", type=int, default=32, help="Sage scorer batch size")
         parser.add_argument("--initial_data_sqlite", type=str, default="", help="Comma-separated SQLite or pickle seed files")
         parser.add_argument("--initial_data_max_rows", type=int, default=0, help="Maximum seed rows loaded from each file; 0 means all")
