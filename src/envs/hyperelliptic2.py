@@ -3,6 +3,7 @@ import json
 import os
 import pickle
 import random
+import shlex
 import sqlite3
 import subprocess
 from functools import lru_cache
@@ -22,18 +23,27 @@ SAGE_DOT_DIR = "/private/tmp/sage-dot-cache"
 _SAGE_NECKLACE_WORKER = None
 
 
+def _sage_python_command(default=SAGE_PYTHON):
+    command = os.environ.get("SAGE_PYTHON_CMD") or os.environ.get("SAGE_PYTHON") or default
+    parts = shlex.split(command)
+    if not parts:
+        raise RuntimeError("empty Sage Python command")
+    executable = parts[0]
+    if os.path.sep in executable and not os.path.exists(executable):
+        raise RuntimeError(f"Sage Python executable not found: {executable}")
+    return parts
+
+
 def _sage_necklace_worker():
     global _SAGE_NECKLACE_WORKER
     if _SAGE_NECKLACE_WORKER is not None and _SAGE_NECKLACE_WORKER.poll() is None:
         return _SAGE_NECKLACE_WORKER
-    if not os.path.exists(SAGE_PYTHON):
-        raise RuntimeError(f"Sage Python not found: {SAGE_PYTHON}")
     os.makedirs(SAGE_DOT_DIR, exist_ok=True)
     worker_path = os.path.abspath("tools/sage_hyperelliptic2_necklace_worker.py")
     env = os.environ.copy()
     env["DOT_SAGE"] = SAGE_DOT_DIR
     _SAGE_NECKLACE_WORKER = subprocess.Popen(
-        [SAGE_PYTHON, worker_path],
+        _sage_python_command() + [worker_path],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -308,14 +318,12 @@ class Hyperelliptic2DataPoint(DataPoint):
     def _sage_worker(cls):
         if cls._SAGE_WORKER is not None and cls._SAGE_WORKER.poll() is None:
             return cls._SAGE_WORKER
-        if not os.path.exists(cls.SAGE_PYTHON):
-            raise RuntimeError(f"Sage Python not found: {cls.SAGE_PYTHON}")
         os.makedirs(cls.SAGE_DOT_DIR, exist_ok=True)
         worker_path = os.path.abspath("tools/sage_hyperelliptic2_score_worker.py")
         env = os.environ.copy()
         env["DOT_SAGE"] = cls.SAGE_DOT_DIR
         cls._SAGE_WORKER = subprocess.Popen(
-            [cls.SAGE_PYTHON, worker_path],
+            _sage_python_command(cls.SAGE_PYTHON) + [worker_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
