@@ -19,7 +19,7 @@ SUPPORTED_NORMAL_BASIS_PRIMES = {3, 5, 7, 11}
 MAX_PRECOMPUTED_EXTENSION_DEGREE = 1999
 NORMAL_BASIS_TABLE_PATH = os.path.join(os.path.dirname(__file__), "hyperelliptic2_normal_basis.json")
 SAGE_PYTHON = "/Applications/SageMath-10-6.app/Contents/MacOS/Python"
-SAGE_DOT_DIR = "/private/tmp/sage-dot-cache"
+SAGE_DOT_DIR = os.environ.get("SAGE_DOT_DIR", os.environ.get("DOT_SAGE", "/private/tmp/sage-dot-cache"))
 _SAGE_NECKLACE_WORKER = None
 
 
@@ -271,7 +271,7 @@ class Hyperelliptic2DataPoint(DataPoint):
     LOCAL_SEARCH_REMOVE_PROB = 0.02
     SCORE_BATCH_SIZE = 32
     SAGE_PYTHON = "/Applications/SageMath-10-6.app/Contents/MacOS/Python"
-    SAGE_DOT_DIR = "/private/tmp/sage-dot-cache"
+    SAGE_DOT_DIR = os.environ.get("SAGE_DOT_DIR", os.environ.get("DOT_SAGE", "/private/tmp/sage-dot-cache"))
     _SAGE_WORKER = None
 
     def __init__(self, N, init=False):
