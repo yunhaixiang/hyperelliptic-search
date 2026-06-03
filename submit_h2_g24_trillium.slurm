@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name=h2-g24
-#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
