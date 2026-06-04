@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=h2-g24
+#SBATCH --job-name=hfactor-g24
 #SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -48,16 +48,16 @@ subprocess.run(os.environ["SAGE_PYTHON_CMD"].split() + ["-c", "import sage.all; 
 PY
 
 python train.py \
-  --env_name hyperelliptic2 \
-  --exp_name h2_p3_pgl2_highgenus_g24_frontier_slurm \
+  --env_name hyperelliptic_factorized \
+  --exp_name hfactor_p3_pgl2_highgenus_g24_slurm \
   --dump_path /scratch/yunhai/hyperelliptic-checkpoints \
   --N 24 \
   --p 3 \
-  --max_len 2504 \
+  --max_len 154 \
   --gensize 0 \
-  --pop_size 6000 \
+  --pop_size 8000 \
   --ntest 500 \
-  --initial_data_sqlite training_data/hyperelliptic2_pgl2_highgenus_g100/train_data.pkl \
+  --initial_data_sqlite training_data/hyperelliptic_factorized_pgl2_highgenus_g100/train_data.pkl \
   --initial_data_max_rows 0 \
   --keep_only_unique true \
   --always_search true \
@@ -71,15 +71,15 @@ python train.py \
   --eos_min_genus 5 \
   --eos_genus_quota 50 \
   --eos_max_genus 12 \
-  --score_batch_size 16 \
+  --score_batch_size 32 \
   --process_pool false \
-  --batch_size 8 \
-  --eval_batch_size 4 \
-  --gen_batch_size 64 \
+  --batch_size 64 \
+  --eval_batch_size 32 \
+  --gen_batch_size 256 \
   --max_epochs 80 \
   --max_steps 1200 \
   --num_eval_steps 200 \
-  --num_samples_from_model 2000 \
+  --num_samples_from_model 4000 \
   --n_layer 3 \
   --n_head 4 \
   --n_embd 192 \

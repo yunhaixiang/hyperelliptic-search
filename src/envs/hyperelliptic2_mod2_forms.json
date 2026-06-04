@@ -1,0 +1,1807 @@
+{
+  "description": "Allowed finite branch-polynomial prefixes modulo 2 for the trinomial L-polynomial branch-cycle prefilter.",
+  "format": "hyperelliptic2_mod2_forms_v1",
+  "forms": {
+    "1": {
+      "3": {
+        "allowed_finite_prefix_masks": [
+          1
+        ],
+        "finite_degree": 3,
+        "infinity_branch": true,
+        "prefix_bits": 1
+      },
+      "4": {
+        "allowed_finite_prefix_masks": [
+          1
+        ],
+        "finite_degree": 4,
+        "infinity_branch": false,
+        "prefix_bits": 1
+      }
+    },
+    "10": {
+      "21": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 21,
+        "infinity_branch": true,
+        "prefix_bits": 10
+      },
+      "22": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 22,
+        "infinity_branch": false,
+        "prefix_bits": 10
+      }
+    },
+    "100": {
+      "201": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 201,
+        "infinity_branch": true,
+        "prefix_bits": 100
+      },
+      "202": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 202,
+        "infinity_branch": false,
+        "prefix_bits": 100
+      }
+    },
+    "11": {
+      "23": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 23,
+        "infinity_branch": true,
+        "prefix_bits": 11
+      },
+      "24": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 24,
+        "infinity_branch": false,
+        "prefix_bits": 11
+      }
+    },
+    "12": {
+      "25": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 25,
+        "infinity_branch": true,
+        "prefix_bits": 12
+      },
+      "26": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 26,
+        "infinity_branch": false,
+        "prefix_bits": 12
+      }
+    },
+    "13": {
+      "27": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 27,
+        "infinity_branch": true,
+        "prefix_bits": 13
+      },
+      "28": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 28,
+        "infinity_branch": false,
+        "prefix_bits": 13
+      }
+    },
+    "14": {
+      "29": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 29,
+        "infinity_branch": true,
+        "prefix_bits": 14
+      },
+      "30": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 30,
+        "infinity_branch": false,
+        "prefix_bits": 14
+      }
+    },
+    "15": {
+      "31": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 31,
+        "infinity_branch": true,
+        "prefix_bits": 15
+      },
+      "32": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 32,
+        "infinity_branch": false,
+        "prefix_bits": 15
+      }
+    },
+    "16": {
+      "33": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 33,
+        "infinity_branch": true,
+        "prefix_bits": 16
+      },
+      "34": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 34,
+        "infinity_branch": false,
+        "prefix_bits": 16
+      }
+    },
+    "17": {
+      "35": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 35,
+        "infinity_branch": true,
+        "prefix_bits": 17
+      },
+      "36": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 36,
+        "infinity_branch": false,
+        "prefix_bits": 17
+      }
+    },
+    "18": {
+      "37": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 37,
+        "infinity_branch": true,
+        "prefix_bits": 18
+      },
+      "38": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 38,
+        "infinity_branch": false,
+        "prefix_bits": 18
+      }
+    },
+    "19": {
+      "39": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 39,
+        "infinity_branch": true,
+        "prefix_bits": 19
+      },
+      "40": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 40,
+        "infinity_branch": false,
+        "prefix_bits": 19
+      }
+    },
+    "2": {
+      "5": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 5,
+        "infinity_branch": true,
+        "prefix_bits": 2
+      },
+      "6": {
+        "allowed_finite_prefix_masks": [
+          1
+        ],
+        "finite_degree": 6,
+        "infinity_branch": false,
+        "prefix_bits": 2
+      }
+    },
+    "20": {
+      "41": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 41,
+        "infinity_branch": true,
+        "prefix_bits": 20
+      },
+      "42": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 42,
+        "infinity_branch": false,
+        "prefix_bits": 20
+      }
+    },
+    "21": {
+      "43": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 43,
+        "infinity_branch": true,
+        "prefix_bits": 21
+      },
+      "44": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 44,
+        "infinity_branch": false,
+        "prefix_bits": 21
+      }
+    },
+    "22": {
+      "45": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 45,
+        "infinity_branch": true,
+        "prefix_bits": 22
+      },
+      "46": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 46,
+        "infinity_branch": false,
+        "prefix_bits": 22
+      }
+    },
+    "23": {
+      "47": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 47,
+        "infinity_branch": true,
+        "prefix_bits": 23
+      },
+      "48": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 48,
+        "infinity_branch": false,
+        "prefix_bits": 23
+      }
+    },
+    "24": {
+      "49": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 49,
+        "infinity_branch": true,
+        "prefix_bits": 24
+      },
+      "50": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 50,
+        "infinity_branch": false,
+        "prefix_bits": 24
+      }
+    },
+    "25": {
+      "51": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 51,
+        "infinity_branch": true,
+        "prefix_bits": 25
+      },
+      "52": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 52,
+        "infinity_branch": false,
+        "prefix_bits": 25
+      }
+    },
+    "26": {
+      "53": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 53,
+        "infinity_branch": true,
+        "prefix_bits": 26
+      },
+      "54": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 54,
+        "infinity_branch": false,
+        "prefix_bits": 26
+      }
+    },
+    "27": {
+      "55": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 55,
+        "infinity_branch": true,
+        "prefix_bits": 27
+      },
+      "56": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 56,
+        "infinity_branch": false,
+        "prefix_bits": 27
+      }
+    },
+    "28": {
+      "57": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 57,
+        "infinity_branch": true,
+        "prefix_bits": 28
+      },
+      "58": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 58,
+        "infinity_branch": false,
+        "prefix_bits": 28
+      }
+    },
+    "29": {
+      "59": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 59,
+        "infinity_branch": true,
+        "prefix_bits": 29
+      },
+      "60": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 60,
+        "infinity_branch": false,
+        "prefix_bits": 29
+      }
+    },
+    "3": {
+      "7": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 7,
+        "infinity_branch": true,
+        "prefix_bits": 3
+      },
+      "8": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 8,
+        "infinity_branch": false,
+        "prefix_bits": 3
+      }
+    },
+    "30": {
+      "61": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 61,
+        "infinity_branch": true,
+        "prefix_bits": 30
+      },
+      "62": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 62,
+        "infinity_branch": false,
+        "prefix_bits": 30
+      }
+    },
+    "31": {
+      "63": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 63,
+        "infinity_branch": true,
+        "prefix_bits": 31
+      },
+      "64": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 64,
+        "infinity_branch": false,
+        "prefix_bits": 31
+      }
+    },
+    "32": {
+      "65": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 65,
+        "infinity_branch": true,
+        "prefix_bits": 32
+      },
+      "66": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 66,
+        "infinity_branch": false,
+        "prefix_bits": 32
+      }
+    },
+    "33": {
+      "67": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 67,
+        "infinity_branch": true,
+        "prefix_bits": 33
+      },
+      "68": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 68,
+        "infinity_branch": false,
+        "prefix_bits": 33
+      }
+    },
+    "34": {
+      "69": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 69,
+        "infinity_branch": true,
+        "prefix_bits": 34
+      },
+      "70": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 70,
+        "infinity_branch": false,
+        "prefix_bits": 34
+      }
+    },
+    "35": {
+      "71": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 71,
+        "infinity_branch": true,
+        "prefix_bits": 35
+      },
+      "72": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 72,
+        "infinity_branch": false,
+        "prefix_bits": 35
+      }
+    },
+    "36": {
+      "73": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 73,
+        "infinity_branch": true,
+        "prefix_bits": 36
+      },
+      "74": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 74,
+        "infinity_branch": false,
+        "prefix_bits": 36
+      }
+    },
+    "37": {
+      "75": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 75,
+        "infinity_branch": true,
+        "prefix_bits": 37
+      },
+      "76": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 76,
+        "infinity_branch": false,
+        "prefix_bits": 37
+      }
+    },
+    "38": {
+      "77": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 77,
+        "infinity_branch": true,
+        "prefix_bits": 38
+      },
+      "78": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 78,
+        "infinity_branch": false,
+        "prefix_bits": 38
+      }
+    },
+    "39": {
+      "79": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 79,
+        "infinity_branch": true,
+        "prefix_bits": 39
+      },
+      "80": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 80,
+        "infinity_branch": false,
+        "prefix_bits": 39
+      }
+    },
+    "4": {
+      "10": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 10,
+        "infinity_branch": false,
+        "prefix_bits": 4
+      },
+      "9": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 9,
+        "infinity_branch": true,
+        "prefix_bits": 4
+      }
+    },
+    "40": {
+      "81": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 81,
+        "infinity_branch": true,
+        "prefix_bits": 40
+      },
+      "82": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 82,
+        "infinity_branch": false,
+        "prefix_bits": 40
+      }
+    },
+    "41": {
+      "83": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 83,
+        "infinity_branch": true,
+        "prefix_bits": 41
+      },
+      "84": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 84,
+        "infinity_branch": false,
+        "prefix_bits": 41
+      }
+    },
+    "42": {
+      "85": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 85,
+        "infinity_branch": true,
+        "prefix_bits": 42
+      },
+      "86": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 86,
+        "infinity_branch": false,
+        "prefix_bits": 42
+      }
+    },
+    "43": {
+      "87": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 87,
+        "infinity_branch": true,
+        "prefix_bits": 43
+      },
+      "88": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 88,
+        "infinity_branch": false,
+        "prefix_bits": 43
+      }
+    },
+    "44": {
+      "89": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 89,
+        "infinity_branch": true,
+        "prefix_bits": 44
+      },
+      "90": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 90,
+        "infinity_branch": false,
+        "prefix_bits": 44
+      }
+    },
+    "45": {
+      "91": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 91,
+        "infinity_branch": true,
+        "prefix_bits": 45
+      },
+      "92": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 92,
+        "infinity_branch": false,
+        "prefix_bits": 45
+      }
+    },
+    "46": {
+      "93": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 93,
+        "infinity_branch": true,
+        "prefix_bits": 46
+      },
+      "94": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 94,
+        "infinity_branch": false,
+        "prefix_bits": 46
+      }
+    },
+    "47": {
+      "95": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 95,
+        "infinity_branch": true,
+        "prefix_bits": 47
+      },
+      "96": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 96,
+        "infinity_branch": false,
+        "prefix_bits": 47
+      }
+    },
+    "48": {
+      "97": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 97,
+        "infinity_branch": true,
+        "prefix_bits": 48
+      },
+      "98": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 98,
+        "infinity_branch": false,
+        "prefix_bits": 48
+      }
+    },
+    "49": {
+      "100": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 100,
+        "infinity_branch": false,
+        "prefix_bits": 49
+      },
+      "99": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 99,
+        "infinity_branch": true,
+        "prefix_bits": 49
+      }
+    },
+    "5": {
+      "11": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 11,
+        "infinity_branch": true,
+        "prefix_bits": 5
+      },
+      "12": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 12,
+        "infinity_branch": false,
+        "prefix_bits": 5
+      }
+    },
+    "50": {
+      "101": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 101,
+        "infinity_branch": true,
+        "prefix_bits": 50
+      },
+      "102": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 102,
+        "infinity_branch": false,
+        "prefix_bits": 50
+      }
+    },
+    "51": {
+      "103": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 103,
+        "infinity_branch": true,
+        "prefix_bits": 51
+      },
+      "104": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 104,
+        "infinity_branch": false,
+        "prefix_bits": 51
+      }
+    },
+    "52": {
+      "105": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 105,
+        "infinity_branch": true,
+        "prefix_bits": 52
+      },
+      "106": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 106,
+        "infinity_branch": false,
+        "prefix_bits": 52
+      }
+    },
+    "53": {
+      "107": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 107,
+        "infinity_branch": true,
+        "prefix_bits": 53
+      },
+      "108": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 108,
+        "infinity_branch": false,
+        "prefix_bits": 53
+      }
+    },
+    "54": {
+      "109": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 109,
+        "infinity_branch": true,
+        "prefix_bits": 54
+      },
+      "110": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 110,
+        "infinity_branch": false,
+        "prefix_bits": 54
+      }
+    },
+    "55": {
+      "111": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 111,
+        "infinity_branch": true,
+        "prefix_bits": 55
+      },
+      "112": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 112,
+        "infinity_branch": false,
+        "prefix_bits": 55
+      }
+    },
+    "56": {
+      "113": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 113,
+        "infinity_branch": true,
+        "prefix_bits": 56
+      },
+      "114": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 114,
+        "infinity_branch": false,
+        "prefix_bits": 56
+      }
+    },
+    "57": {
+      "115": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 115,
+        "infinity_branch": true,
+        "prefix_bits": 57
+      },
+      "116": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 116,
+        "infinity_branch": false,
+        "prefix_bits": 57
+      }
+    },
+    "58": {
+      "117": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 117,
+        "infinity_branch": true,
+        "prefix_bits": 58
+      },
+      "118": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 118,
+        "infinity_branch": false,
+        "prefix_bits": 58
+      }
+    },
+    "59": {
+      "119": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 119,
+        "infinity_branch": true,
+        "prefix_bits": 59
+      },
+      "120": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 120,
+        "infinity_branch": false,
+        "prefix_bits": 59
+      }
+    },
+    "6": {
+      "13": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 13,
+        "infinity_branch": true,
+        "prefix_bits": 6
+      },
+      "14": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 14,
+        "infinity_branch": false,
+        "prefix_bits": 6
+      }
+    },
+    "60": {
+      "121": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 121,
+        "infinity_branch": true,
+        "prefix_bits": 60
+      },
+      "122": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 122,
+        "infinity_branch": false,
+        "prefix_bits": 60
+      }
+    },
+    "61": {
+      "123": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 123,
+        "infinity_branch": true,
+        "prefix_bits": 61
+      },
+      "124": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 124,
+        "infinity_branch": false,
+        "prefix_bits": 61
+      }
+    },
+    "62": {
+      "125": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 125,
+        "infinity_branch": true,
+        "prefix_bits": 62
+      },
+      "126": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 126,
+        "infinity_branch": false,
+        "prefix_bits": 62
+      }
+    },
+    "63": {
+      "127": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 127,
+        "infinity_branch": true,
+        "prefix_bits": 63
+      },
+      "128": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 128,
+        "infinity_branch": false,
+        "prefix_bits": 63
+      }
+    },
+    "64": {
+      "129": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 129,
+        "infinity_branch": true,
+        "prefix_bits": 64
+      },
+      "130": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 130,
+        "infinity_branch": false,
+        "prefix_bits": 64
+      }
+    },
+    "65": {
+      "131": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 131,
+        "infinity_branch": true,
+        "prefix_bits": 65
+      },
+      "132": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 132,
+        "infinity_branch": false,
+        "prefix_bits": 65
+      }
+    },
+    "66": {
+      "133": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 133,
+        "infinity_branch": true,
+        "prefix_bits": 66
+      },
+      "134": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 134,
+        "infinity_branch": false,
+        "prefix_bits": 66
+      }
+    },
+    "67": {
+      "135": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 135,
+        "infinity_branch": true,
+        "prefix_bits": 67
+      },
+      "136": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 136,
+        "infinity_branch": false,
+        "prefix_bits": 67
+      }
+    },
+    "68": {
+      "137": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 137,
+        "infinity_branch": true,
+        "prefix_bits": 68
+      },
+      "138": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 138,
+        "infinity_branch": false,
+        "prefix_bits": 68
+      }
+    },
+    "69": {
+      "139": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 139,
+        "infinity_branch": true,
+        "prefix_bits": 69
+      },
+      "140": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 140,
+        "infinity_branch": false,
+        "prefix_bits": 69
+      }
+    },
+    "7": {
+      "15": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 15,
+        "infinity_branch": true,
+        "prefix_bits": 7
+      },
+      "16": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 16,
+        "infinity_branch": false,
+        "prefix_bits": 7
+      }
+    },
+    "70": {
+      "141": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 141,
+        "infinity_branch": true,
+        "prefix_bits": 70
+      },
+      "142": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 142,
+        "infinity_branch": false,
+        "prefix_bits": 70
+      }
+    },
+    "71": {
+      "143": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 143,
+        "infinity_branch": true,
+        "prefix_bits": 71
+      },
+      "144": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 144,
+        "infinity_branch": false,
+        "prefix_bits": 71
+      }
+    },
+    "72": {
+      "145": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 145,
+        "infinity_branch": true,
+        "prefix_bits": 72
+      },
+      "146": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 146,
+        "infinity_branch": false,
+        "prefix_bits": 72
+      }
+    },
+    "73": {
+      "147": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 147,
+        "infinity_branch": true,
+        "prefix_bits": 73
+      },
+      "148": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 148,
+        "infinity_branch": false,
+        "prefix_bits": 73
+      }
+    },
+    "74": {
+      "149": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 149,
+        "infinity_branch": true,
+        "prefix_bits": 74
+      },
+      "150": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 150,
+        "infinity_branch": false,
+        "prefix_bits": 74
+      }
+    },
+    "75": {
+      "151": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 151,
+        "infinity_branch": true,
+        "prefix_bits": 75
+      },
+      "152": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 152,
+        "infinity_branch": false,
+        "prefix_bits": 75
+      }
+    },
+    "76": {
+      "153": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 153,
+        "infinity_branch": true,
+        "prefix_bits": 76
+      },
+      "154": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 154,
+        "infinity_branch": false,
+        "prefix_bits": 76
+      }
+    },
+    "77": {
+      "155": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 155,
+        "infinity_branch": true,
+        "prefix_bits": 77
+      },
+      "156": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 156,
+        "infinity_branch": false,
+        "prefix_bits": 77
+      }
+    },
+    "78": {
+      "157": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 157,
+        "infinity_branch": true,
+        "prefix_bits": 78
+      },
+      "158": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 158,
+        "infinity_branch": false,
+        "prefix_bits": 78
+      }
+    },
+    "79": {
+      "159": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 159,
+        "infinity_branch": true,
+        "prefix_bits": 79
+      },
+      "160": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 160,
+        "infinity_branch": false,
+        "prefix_bits": 79
+      }
+    },
+    "8": {
+      "17": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 17,
+        "infinity_branch": true,
+        "prefix_bits": 8
+      },
+      "18": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 18,
+        "infinity_branch": false,
+        "prefix_bits": 8
+      }
+    },
+    "80": {
+      "161": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 161,
+        "infinity_branch": true,
+        "prefix_bits": 80
+      },
+      "162": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 162,
+        "infinity_branch": false,
+        "prefix_bits": 80
+      }
+    },
+    "81": {
+      "163": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 163,
+        "infinity_branch": true,
+        "prefix_bits": 81
+      },
+      "164": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 164,
+        "infinity_branch": false,
+        "prefix_bits": 81
+      }
+    },
+    "82": {
+      "165": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 165,
+        "infinity_branch": true,
+        "prefix_bits": 82
+      },
+      "166": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 166,
+        "infinity_branch": false,
+        "prefix_bits": 82
+      }
+    },
+    "83": {
+      "167": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 167,
+        "infinity_branch": true,
+        "prefix_bits": 83
+      },
+      "168": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 168,
+        "infinity_branch": false,
+        "prefix_bits": 83
+      }
+    },
+    "84": {
+      "169": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 169,
+        "infinity_branch": true,
+        "prefix_bits": 84
+      },
+      "170": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 170,
+        "infinity_branch": false,
+        "prefix_bits": 84
+      }
+    },
+    "85": {
+      "171": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 171,
+        "infinity_branch": true,
+        "prefix_bits": 85
+      },
+      "172": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 172,
+        "infinity_branch": false,
+        "prefix_bits": 85
+      }
+    },
+    "86": {
+      "173": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 173,
+        "infinity_branch": true,
+        "prefix_bits": 86
+      },
+      "174": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 174,
+        "infinity_branch": false,
+        "prefix_bits": 86
+      }
+    },
+    "87": {
+      "175": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 175,
+        "infinity_branch": true,
+        "prefix_bits": 87
+      },
+      "176": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 176,
+        "infinity_branch": false,
+        "prefix_bits": 87
+      }
+    },
+    "88": {
+      "177": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 177,
+        "infinity_branch": true,
+        "prefix_bits": 88
+      },
+      "178": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 178,
+        "infinity_branch": false,
+        "prefix_bits": 88
+      }
+    },
+    "89": {
+      "179": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 179,
+        "infinity_branch": true,
+        "prefix_bits": 89
+      },
+      "180": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 180,
+        "infinity_branch": false,
+        "prefix_bits": 89
+      }
+    },
+    "9": {
+      "19": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 19,
+        "infinity_branch": true,
+        "prefix_bits": 9
+      },
+      "20": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 20,
+        "infinity_branch": false,
+        "prefix_bits": 9
+      }
+    },
+    "90": {
+      "181": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 181,
+        "infinity_branch": true,
+        "prefix_bits": 90
+      },
+      "182": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 182,
+        "infinity_branch": false,
+        "prefix_bits": 90
+      }
+    },
+    "91": {
+      "183": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 183,
+        "infinity_branch": true,
+        "prefix_bits": 91
+      },
+      "184": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 184,
+        "infinity_branch": false,
+        "prefix_bits": 91
+      }
+    },
+    "92": {
+      "185": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 185,
+        "infinity_branch": true,
+        "prefix_bits": 92
+      },
+      "186": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 186,
+        "infinity_branch": false,
+        "prefix_bits": 92
+      }
+    },
+    "93": {
+      "187": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 187,
+        "infinity_branch": true,
+        "prefix_bits": 93
+      },
+      "188": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 188,
+        "infinity_branch": false,
+        "prefix_bits": 93
+      }
+    },
+    "94": {
+      "189": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 189,
+        "infinity_branch": true,
+        "prefix_bits": 94
+      },
+      "190": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 190,
+        "infinity_branch": false,
+        "prefix_bits": 94
+      }
+    },
+    "95": {
+      "191": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 191,
+        "infinity_branch": true,
+        "prefix_bits": 95
+      },
+      "192": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 192,
+        "infinity_branch": false,
+        "prefix_bits": 95
+      }
+    },
+    "96": {
+      "193": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 193,
+        "infinity_branch": true,
+        "prefix_bits": 96
+      },
+      "194": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 194,
+        "infinity_branch": false,
+        "prefix_bits": 96
+      }
+    },
+    "97": {
+      "195": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 195,
+        "infinity_branch": true,
+        "prefix_bits": 97
+      },
+      "196": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 196,
+        "infinity_branch": false,
+        "prefix_bits": 97
+      }
+    },
+    "98": {
+      "197": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 197,
+        "infinity_branch": true,
+        "prefix_bits": 98
+      },
+      "198": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 198,
+        "infinity_branch": false,
+        "prefix_bits": 98
+      }
+    },
+    "99": {
+      "199": {
+        "allowed_finite_prefix_masks": [
+          3
+        ],
+        "finite_degree": 199,
+        "infinity_branch": true,
+        "prefix_bits": 99
+      },
+      "200": {
+        "allowed_finite_prefix_masks": [
+          5
+        ],
+        "finite_degree": 200,
+        "infinity_branch": false,
+        "prefix_bits": 99
+      }
+    }
+  },
+  "max_genus": 100
+}

@@ -167,8 +167,34 @@ def handle(request):
         return {"necklaces": polynomial_to_necklaces(request["coefficients"], p)}
     if op == "necklaces_to_polynomial":
         return {"coefficients": necklaces_to_polynomial(request["necklaces"], p)}
+    if op == "necklaces_to_polynomial_batch":
+        rows = []
+        errors = []
+        for necklaces in request["necklaces_batch"]:
+            try:
+                rows.append(necklaces_to_polynomial(necklaces, p))
+                errors.append(None)
+            except Exception as exc:
+                rows.append(None)
+                errors.append(f"{type(exc).__name__}: {exc}")
+        return {"coefficients": rows, "errors": errors}
+    if op == "necklaces_to_factors":
+        return {"factors": [necklace_to_factor(necklace, p) for necklace in request["necklaces"]]}
+    if op == "necklaces_to_factors_batch":
+        rows = []
+        errors = []
+        for necklaces in request["necklaces_batch"]:
+            try:
+                rows.append([necklace_to_factor(necklace, p) for necklace in necklaces])
+                errors.append(None)
+            except Exception as exc:
+                rows.append(None)
+                errors.append(f"{type(exc).__name__}: {exc}")
+        return {"factors": rows, "errors": errors}
     if op == "random_necklace":
         return {"necklace": random_necklace(int(request["degree"]), p)}
+    if op == "random_necklace_batch":
+        return {"necklaces": [random_necklace(int(degree), p) for degree in request["degrees"]]}
     if op == "random_squarefree_monic_polynomial":
         return {"coefficients": random_squarefree_monic_polynomial(int(request["degree"]), p)}
     raise ValueError(f"unknown op: {op}")

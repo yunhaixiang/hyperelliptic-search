@@ -1,5 +1,6 @@
 import queue
 import threading
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
 from logging import getLogger
@@ -75,11 +76,15 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
     total_invalid = 0
     all_processed_data = []
     results_lock = threading.Lock()
+    generated_genus_counts = Counter()
+    dynamic_min_genus = int(getattr(args, "eos_min_genus", 0))
+    eos_quota = int(getattr(args, "eos_genus_quota", 0))
+    eos_max_genus = int(getattr(args, "eos_max_genus", 0) or getattr(args, "N", dynamic_min_genus))
 
     executor = ProcessPoolExecutor(max_workers=min(MAX_WORKERS, args.num_workers)) if args.process_pool else None
 
     def process_batches(batches):
-        nonlocal total_invalid
+        nonlocal total_invalid, dynamic_min_genus
         all_data = [batch_numpy[j] for batch_numpy in batches for j in range(batch_numpy.shape[0])]
         detok_results = detokenize(all_data, args, env, executor=executor)
         valid_data, n_invalid, processed_data = do_score(detok_results, args=args, executor=executor)
@@ -87,6 +92,22 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
             results.extend(valid_data)
             total_invalid += n_invalid
             all_processed_data.extend(processed_data)
+            for datapoint in valid_data:
+                genus = getattr(datapoint, "genus", None)
+                if genus is not None:
+                    generated_genus_counts[int(genus)] += 1
+            if eos_quota > 0 and dynamic_min_genus > 0:
+                old_min_genus = dynamic_min_genus
+                while (
+                    dynamic_min_genus < eos_max_genus
+                    and generated_genus_counts[dynamic_min_genus] >= eos_quota
+                ):
+                    dynamic_min_genus += 1
+                if dynamic_min_genus != old_min_genus:
+                    logger.info(
+                        f"EOS min genus advanced from {old_min_genus} to {dynamic_min_genus} "
+                        f"after reaching quota {eos_quota}"
+                    )
 
     with cpu_sink(process_batches, decouple=args.process_pool) as sink:
         pending_batches = []
@@ -106,6 +127,13 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
             X_init = X_init.to(args.device)
             top_k = args.top_k if args.top_k != -1 else None
             allowed_token_ids_by_pos = getattr(env.tokenizer, "allowed_token_ids_by_pos", None)
+            logits_processor = None
+            with results_lock:
+                current_min_genus = dynamic_min_genus
+            if current_min_genus > 0:
+                make_processor = getattr(env.tokenizer, "make_eos_min_genus_processor", None)
+                if make_processor is not None:
+                    logits_processor = make_processor(current_min_genus)
             batch_numpy = model.generate(
                 X_init,
                 args.max_len + 1,
@@ -113,6 +141,7 @@ def sample_and_score(model, args, stoi, itos, env, temp, temp_span=0):
                 top_k=top_k,
                 do_sample=True,
                 allowed_token_ids_by_pos=allowed_token_ids_by_pos,
+                logits_processor=logits_processor,
             ).cpu().numpy()
 
             pending_batches.append(batch_numpy)

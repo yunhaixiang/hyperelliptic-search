@@ -139,7 +139,16 @@ class Transformer(nn.Module):
         return logits, loss, presents_kv
 
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None, allowed_token_ids_by_pos=None):
+    def generate(
+        self,
+        idx,
+        max_new_tokens,
+        temperature=1.0,
+        do_sample=False,
+        top_k=None,
+        allowed_token_ids_by_pos=None,
+        logits_processor=None,
+    ):
         self.eval()
 
         past_kv = None
@@ -163,6 +172,8 @@ class Transformer(nn.Module):
                         masked = torch.full_like(logits, -float("inf"))
                         masked[:, allowed] = logits[:, allowed]
                         logits = masked
+                if logits_processor is not None:
+                    logits = logits_processor(logits, idx)
                 if top_k is not None:
                     v, _ = torch.topk(logits, top_k)
                     logits[logits < v[:, [-1]]] = -float("inf")

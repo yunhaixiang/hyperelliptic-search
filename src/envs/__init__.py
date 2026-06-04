@@ -9,6 +9,11 @@ _ENV_SPECS = {
     "hyperelliptic_highgenus": ("src.envs.hyperelliptic_highgenus", "HighGenusHyperellipticEnvironment"),
     "hyperelliptic_multigenus": ("src.envs.hyperelliptic_multigenus", "MultiGenusHyperellipticEnvironment"),
     "hyperelliptic2": ("src.envs.hyperelliptic2", "Hyperelliptic2Environment"),
+    "hyperelliptic_factorized": ("src.envs.hyperelliptic_factorized", "FactorizedHyperellipticEnvironment"),
+    "hyperelliptic_factorized_fixed": (
+        "src.envs.hyperelliptic_factorized_fixed",
+        "FixedFactorizedHyperellipticEnvironment",
+    ),
 }
 
 

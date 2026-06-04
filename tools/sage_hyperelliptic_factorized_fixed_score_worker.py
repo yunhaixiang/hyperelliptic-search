@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Persistent Sage worker for hyperelliptic2 exact trinomial-L scoring."""
+"""Persistent Sage worker for fixed-genus factorized hyperelliptic scoring."""
 
 import json
+import math
 import os
 import sys
 
@@ -54,12 +55,41 @@ def hasse_witt_target_sparsity(poly, p, genus):
             for j in range(1, genus + 1)
         ])
     matrix = Matrix(field, matrix_rows)
-    x = PolynomialRing(field, "z").gen()
-    coeffs = matrix.charpoly(x).list()
-    # charpoly().list() is low-to-high. For monic degree g, coefficients
-    # of z^(g-1),...,z are the first g-1 L-polynomial coefficients mod p.
+    z = PolynomialRing(field, "z").gen()
+    coeffs = matrix.charpoly(z).list()
     target_coeffs = [coeffs[genus - i] for i in range(1, genus)]
     return sum(1 for value in target_coeffs if value != 0)
+
+
+def invalid(lpoly=None, genus=None, target_coeffs=None):
+    return {
+        "score": -1.0,
+        "valid": False,
+        "genus": genus,
+        "lpoly": lpoly,
+        "middle": None,
+        "target_coeffs": target_coeffs,
+    }
+
+
+def coefficient_bound(p, genus, index):
+    return math.comb(2 * genus, index) * (float(p) ** (0.5 * index))
+
+
+def lpoly_closeness_score(lpoly, p, genus):
+    target_coeffs = [int(lpoly[index]) for index in range(1, genus)]
+    if not target_coeffs:
+        return 0.0, target_coeffs
+    zero_count = sum(1 for value in target_coeffs if value == 0)
+    nonzero_terms = []
+    for index, value in enumerate(target_coeffs, start=1):
+        if value == 0:
+            continue
+        bound = coefficient_bound(p, genus, index)
+        normalized = abs(float(value)) / bound if bound > 0 else float(value != 0)
+        nonzero_terms.append(max(0.0, 1.0 - min(1.0, normalized)))
+    tie_break = sum(nonzero_terms) / len(nonzero_terms) if nonzero_terms else 0.0
+    return float(zero_count + tie_break), target_coeffs
 
 
 def score_row(row, p):
@@ -86,15 +116,11 @@ def score_row(row, p):
         curve = HyperellipticCurve(f)
         frob = curve.frobenius_polynomial()
         lpoly = [int(coeff(frob, degree)) for degree in range(2 * genus + 1)]
-        # Trinomial means only constant, middle, and top terms are nonzero.
-        target_coeffs = [lpoly[i] for i in range(1, 2 * genus) if i != genus]
-        if any(value != 0 for value in target_coeffs):
-            return invalid(lpoly=lpoly, genus=genus, target_coeffs=target_coeffs)
-
+        score, target_coeffs = lpoly_closeness_score(lpoly, p, genus)
         middle = int(lpoly[genus])
         return {
-            "score": float(genus),
-            "valid": True,
+            "score": score,
+            "valid": score >= 0.0,
             "genus": genus,
             "lpoly": lpoly,
             "middle": middle,
@@ -104,21 +130,9 @@ def score_row(row, p):
         return invalid()
 
 
-def invalid(lpoly=None, genus=None, target_coeffs=None):
-    return {
-        "score": -1.0,
-        "valid": False,
-        "genus": genus,
-        "lpoly": lpoly,
-        "middle": None,
-        "target_coeffs": target_coeffs,
-    }
-
-
 def handle(request):
     p = int(request["p"])
-    data = request.get("data", [])
-    rows = [score_row(row, p) for row in data]
+    rows = [score_row(row, p) for row in request.get("data", [])]
     return {
         "scores": [row["score"] for row in rows],
         "valid": [row["valid"] for row in rows],
