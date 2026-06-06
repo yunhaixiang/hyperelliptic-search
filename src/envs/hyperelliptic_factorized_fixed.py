@@ -270,6 +270,9 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
     LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE = 0.0
     LOCAL_SEARCH_SCORE_BIAS_BASE = 2.0
     LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS = 0
+    LOCAL_SEARCH_SAME_TYPE_WEIGHT = 0.80
+    LOCAL_SEARCH_SPLIT_WEIGHT = 0.10
+    LOCAL_SEARCH_MERGE_WEIGHT = 0.10
     SCORE_BATCH_SIZE = 32
     SCORE_TIEBREAK_MODE = "hasse_witt"
     SAGE_PYTHON = SAGE_PYTHON
@@ -524,13 +527,27 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
 
     def _mutate_factors(self, factors):
         moves = [
+            (self._replace_same_degree_factor, max(0.0, float(self.LOCAL_SEARCH_SAME_TYPE_WEIGHT))),
+            (self._split_factor, max(0.0, float(self.LOCAL_SEARCH_SPLIT_WEIGHT))),
+            (self._merge_factors, max(0.0, float(self.LOCAL_SEARCH_MERGE_WEIGHT))),
+        ]
+        positive_moves = [(move, weight) for move, weight in moves if weight > 0.0]
+        if positive_moves:
+            move = random.choices(
+                [item[0] for item in positive_moves],
+                weights=[item[1] for item in positive_moves],
+                k=1,
+            )[0]
+            mutated = move(factors)
+            if mutated is not None and _total_factor_degree(mutated) in self._allowed_degrees():
+                return mutated
+        fallback_moves = [
             self._replace_same_degree_factor,
             self._split_factor,
             self._merge_factors,
-            self._toggle_odd_even_model,
         ]
-        random.shuffle(moves)
-        for move in moves:
+        random.shuffle(fallback_moves)
+        for move in fallback_moves:
             mutated = move(factors)
             if mutated is not None and _total_factor_degree(mutated) in self._allowed_degrees():
                 return mutated
@@ -596,6 +613,15 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         cls.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS = int(
             pars.get("local_search_score_bias_top_rounds", cls.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS)
         )
+        cls.LOCAL_SEARCH_SAME_TYPE_WEIGHT = float(
+            pars.get("local_search_same_type_weight", cls.LOCAL_SEARCH_SAME_TYPE_WEIGHT)
+        )
+        cls.LOCAL_SEARCH_SPLIT_WEIGHT = float(
+            pars.get("local_search_split_weight", cls.LOCAL_SEARCH_SPLIT_WEIGHT)
+        )
+        cls.LOCAL_SEARCH_MERGE_WEIGHT = float(
+            pars.get("local_search_merge_weight", cls.LOCAL_SEARCH_MERGE_WEIGHT)
+        )
         cls.SCORE_BATCH_SIZE = int(pars.get("score_batch_size", cls.SCORE_BATCH_SIZE))
         cls.SCORE_TIEBREAK_MODE = str(pars.get("score_tiebreak_mode", cls.SCORE_TIEBREAK_MODE))
 
@@ -611,6 +637,9 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
             "local_search_score_bias_min_score": cls.LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE,
             "local_search_score_bias_base": cls.LOCAL_SEARCH_SCORE_BIAS_BASE,
             "local_search_score_bias_top_rounds": cls.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS,
+            "local_search_same_type_weight": cls.LOCAL_SEARCH_SAME_TYPE_WEIGHT,
+            "local_search_split_weight": cls.LOCAL_SEARCH_SPLIT_WEIGHT,
+            "local_search_merge_weight": cls.LOCAL_SEARCH_MERGE_WEIGHT,
             "score_batch_size": cls.SCORE_BATCH_SIZE,
             "score_tiebreak_mode": cls.SCORE_TIEBREAK_MODE,
         }
@@ -786,6 +815,9 @@ class FixedFactorizedHyperellipticEnvironment(BaseEnvironment):
         self.data_class.LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE = params.local_search_score_bias_min_score
         self.data_class.LOCAL_SEARCH_SCORE_BIAS_BASE = params.local_search_score_bias_base
         self.data_class.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS = params.local_search_score_bias_top_rounds
+        self.data_class.LOCAL_SEARCH_SAME_TYPE_WEIGHT = params.local_search_same_type_weight
+        self.data_class.LOCAL_SEARCH_SPLIT_WEIGHT = params.local_search_split_weight
+        self.data_class.LOCAL_SEARCH_MERGE_WEIGHT = params.local_search_merge_weight
         self.data_class.SCORE_BATCH_SIZE = params.score_batch_size
         self.data_class.SCORE_TIEBREAK_MODE = params.score_tiebreak_mode
         self.tokenizer = FixedFactorizedHyperellipticTokenizer(
@@ -806,6 +838,9 @@ class FixedFactorizedHyperellipticEnvironment(BaseEnvironment):
         parser.add_argument("--local_search_score_bias_min_score", type=float, default=0.0, help="Minimum score required before score-biased local-search scaling applies")
         parser.add_argument("--local_search_score_bias_base", type=float, default=2.0, help="Exponential local-search decay per score point below maximum")
         parser.add_argument("--local_search_score_bias_top_rounds", type=int, default=0, help="Local-search rounds assigned to maximum-score candidates; 0 uses --local_search_steps times --local_search_score_bias_max_mult")
+        parser.add_argument("--local_search_same_type_weight", type=float, default=0.80, help="Local-search mutation weight for replacing a factor by another factor of the same degree")
+        parser.add_argument("--local_search_split_weight", type=float, default=0.10, help="Local-search mutation weight for splitting one factor into two factors")
+        parser.add_argument("--local_search_merge_weight", type=float, default=0.10, help="Local-search mutation weight for merging two factors")
         parser.add_argument("--score_batch_size", type=int, default=32, help="Sage scorer batch size")
         parser.add_argument(
             "--score_tiebreak_mode",

@@ -2,8 +2,10 @@ __pycache__/
 
 downloads/
 checkpoint/
+dump/
 results/
 exports/
+logs/*.log
 
 .ipynb_checkpoints
 
