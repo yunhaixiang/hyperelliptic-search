@@ -77,6 +77,11 @@ def get_parser():
     parser.add_argument("--frontier_high_prob", type=float, default=0.35, help="frontier sampler probability for high bucket")
     parser.add_argument("--frontier_top_prob", type=float, default=0.10, help="frontier sampler probability for top bucket")
     parser.add_argument("--frontier_max_repeat", type=int, default=20, help="cap expected repeats per datapoint per epoch; 0 disables cap")
+    parser.add_argument("--score_bucket_capping", type=bool_flag, default="false", help="Dynamically cap non-top floor-score buckets during dataset selection")
+    parser.add_argument("--score_bucket_cap_scale", type=float, default=4.0, help="Multiplier on the top bucket count for logarithmic non-top bucket caps")
+    parser.add_argument("--score_bucket_cap_log_base", type=float, default=2.0, help="Log base used by score bucket caps")
+    parser.add_argument("--score_bucket_cap_min", type=int, default=16, help="Minimum cap for any non-top score bucket")
+    parser.add_argument("--score_bucket_cap_weight_base", type=float, default=8.0, help="Within-bucket weighted-resampling preference for higher fractional scores")
 
     # path and ports
     parser.add_argument("--dump_path", type=str, default="checkpoint", help="Experiment dump path")

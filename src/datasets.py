@@ -2,7 +2,9 @@ import os
 import pickle
 import random
 import time
+import math
 from glob import glob
+from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 from logging import getLogger
@@ -265,9 +267,81 @@ def select_best(n, data, args=None):
     if len(data) <= n:
         random.shuffle(data)
         return data
+    if args is not None and getattr(args, "score_bucket_capping", False):
+        return select_with_score_bucket_caps(n, data, args)
     sorted_data = sorted(data, key=lambda x: selection_score(x, args), reverse=True)[:n]
     random.shuffle(sorted_data)
     return sorted_data
+
+
+def _score_bucket(d, args):
+    score = selection_score(d, args)
+    if score is None:
+        return None
+    return math.floor(float(score))
+
+
+def _weighted_resample_without_replacement(items, k, args):
+    if len(items) <= k:
+        out = list(items)
+        random.shuffle(out)
+        return out
+
+    base = max(1.0, float(getattr(args, "score_bucket_cap_weight_base", 8.0)))
+    remaining = list(items)
+    selected = []
+    for _ in range(k):
+        weights = []
+        for item in remaining:
+            score = float(selection_score(item, args))
+            frac = score - math.floor(score)
+            weights.append(base ** frac)
+        chosen = random.choices(range(len(remaining)), weights=weights, k=1)[0]
+        selected.append(remaining.pop(chosen))
+    return selected
+
+
+def select_with_score_bucket_caps(n, data, args):
+    buckets = defaultdict(list)
+    max_score = None
+    for d in data:
+        score = selection_score(d, args)
+        if score is None:
+            continue
+        score = float(score)
+        max_score = score if max_score is None else max(max_score, score)
+        bucket = _score_bucket(d, args)
+        if bucket is not None:
+            buckets[bucket].append(d)
+
+    if not buckets or max_score is None:
+        return select_best(n, data, args=None)
+
+    top_bucket = math.floor(max_score)
+    top_count = len(buckets[top_bucket])
+    scale = max(0.0, float(getattr(args, "score_bucket_cap_scale", 4.0)))
+    log_base = max(1.000001, float(getattr(args, "score_bucket_cap_log_base", 2.0)))
+    min_cap = max(0, int(getattr(args, "score_bucket_cap_min", 16)))
+
+    selected = list(buckets[top_bucket])
+    bucket_caps = {top_bucket: "uncapped"}
+    for bucket in sorted((b for b in buckets if b != top_bucket), reverse=True):
+        distance = max(1, top_bucket - bucket)
+        log_denom = max(1.0, math.log(distance + 1, log_base))
+        cap = max(min_cap, int(math.ceil((top_count * scale) / log_denom)))
+        bucket_caps[bucket] = cap
+        selected.extend(_weighted_resample_without_replacement(buckets[bucket], cap, args))
+
+    if len(selected) > n:
+        selected = sorted(selected, key=lambda x: selection_score(x, args), reverse=True)[:n]
+
+    random.shuffle(selected)
+    logger.info(
+        "Score bucket capping: "
+        f"max_score={max_score:.6g}, top_bucket={top_bucket}, top_count={top_count}, caps={bucket_caps}, "
+        f"selected={len(selected)} / {len(data)}"
+    )
+    return selected
 
 
 def make_train_test(data, ntest):

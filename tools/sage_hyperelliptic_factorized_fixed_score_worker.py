@@ -102,20 +102,17 @@ def lpoly_sparsity_score(lpoly, hw_zero_count, genus, p, tie_break_mode):
     target_coeffs = [int(lpoly[index]) for index in range(1, genus)]
     if not target_coeffs:
         return 0.0, target_coeffs, 0
+    target_len = len(target_coeffs)
     lpoly_zero_count = sum(1 for value in target_coeffs if value == 0)
+    if lpoly_zero_count == target_len:
+        return float(target_len), target_coeffs, lpoly_zero_count
     if tie_break_mode in {"average", "archimedean"}:
         tie_break = archimedean_tie_break(target_coeffs, p, genus)
     else:
-        tie_break = hasse_witt_tie_break(lpoly_zero_count, hw_zero_count, len(target_coeffs))
+        tie_break = hasse_witt_tie_break(lpoly_zero_count, hw_zero_count, target_len)
     tie_break = max(0.0, min(1.0, float(tie_break)))
-    return float(lpoly_zero_count + tie_break), target_coeffs, lpoly_zero_count
-
-
-def effective_sparsity_reject_threshold(genus, threshold):
-    threshold = int(threshold)
-    if threshold < 0:
-        return (7 * int(genus) + 19) // 20
-    return threshold
+    score = min(float(lpoly_zero_count + tie_break), float(target_len) - 1e-6)
+    return score, target_coeffs, lpoly_zero_count
 
 
 def precheck_row(row, p, sparsity_reject_threshold):
@@ -138,20 +135,6 @@ def precheck_row(row, p, sparsity_reject_threshold):
 
         hw_target_coeffs = hasse_witt_target_coeffs(f, p, genus)
         hw_zero_count = sum(1 for value in hw_target_coeffs if value == 0)
-        hw_sparsity = max(0, genus - 1 - hw_zero_count)
-        hw_sparsity_reject_threshold = effective_sparsity_reject_threshold(
-            genus,
-            sparsity_reject_threshold,
-        )
-        if hw_sparsity >= hw_sparsity_reject_threshold:
-            return {
-                "valid": False,
-                "row": invalid(
-                    genus=genus,
-                    hw_target_coeffs=hw_target_coeffs,
-                    hw_zero_count=hw_zero_count,
-                ),
-            }
         return {
             "valid": True,
             "poly": f,
@@ -175,19 +158,6 @@ def score_prechecked(prechecked, p, tie_break_mode, sparsity_reject_threshold):
         lpoly = [int(coeff(frob, degree)) for degree in range(2 * genus + 1)]
         target_coeffs = [int(lpoly[index]) for index in range(1, genus)]
         lpoly_zero_count = sum(1 for value in target_coeffs if value == 0)
-        actual_sparsity = max(0, genus - 1 - lpoly_zero_count)
-        actual_sparsity_reject_threshold = effective_sparsity_reject_threshold(
-            genus,
-            sparsity_reject_threshold,
-        )
-        if actual_sparsity >= actual_sparsity_reject_threshold:
-            return invalid(
-                lpoly=lpoly,
-                genus=genus,
-                target_coeffs=target_coeffs,
-                hw_target_coeffs=hw_target_coeffs,
-                hw_zero_count=hw_zero_count,
-            )
         score, target_coeffs, lpoly_zero_count = lpoly_sparsity_score(
             lpoly,
             hw_zero_count,

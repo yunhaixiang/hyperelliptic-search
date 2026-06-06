@@ -6,6 +6,7 @@ import random
 import shlex
 import sqlite3
 import subprocess
+import math
 
 import numpy as np
 
@@ -290,6 +291,7 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
     SPARSITY_REJECT_THRESHOLD = -1
     SAGE_PYTHON = SAGE_PYTHON
     SAGE_DOT_DIR = SAGE_DOT_DIR
+    LOCAL_SEARCH_CURRENT_MAX_SCORE = None
     _SAGE_SCORE_WORKER = None
 
     def __init__(self, N, init=False):
@@ -380,8 +382,16 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         self.hw_zero_count = other.hw_zero_count
         self.lpoly_zero_count = other.lpoly_zero_count
 
+    def _is_true_trinomial_lpoly(self):
+        target_len = int(self.GENUS) - 1
+        if self.lpoly_zero_count is not None:
+            return int(self.lpoly_zero_count) >= target_len
+        if self.target_coeffs is None:
+            return False
+        return len(self.target_coeffs) == target_len and all(int(value) == 0 for value in self.target_coeffs)
+
     def _is_top_score(self):
-        return float(self.score) >= float(self.GENUS - 1) - 1e-9
+        return self._is_true_trinomial_lpoly()
 
     def pgl2_orbit_datapoints(self):
         if not self.LOCAL_SEARCH_PGL2_TOP_ORBIT or not self._is_top_score():
@@ -622,12 +632,16 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         best = self
         rounds = self.LOCAL_SEARCH_STEPS if improve_with_local_search else max(1, self.LOCAL_SEARCH_STEPS // 4)
         if improve_with_local_search and self.LOCAL_SEARCH_SCORE_BIAS and self.score >= self.LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE:
-            max_score = max(1.0, float(self.GENUS - 1))
+            max_score = self.LOCAL_SEARCH_CURRENT_MAX_SCORE
+            if max_score is None:
+                max_score = max(1.0, float(self.GENUS - 1))
+            max_score_bucket = max(0, math.floor(float(max_score)))
+            score_bucket = max(0, math.floor(float(self.score)))
             base = max(1.0, float(self.LOCAL_SEARCH_SCORE_BIAS_BASE))
             top_rounds = int(self.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS)
             if top_rounds <= 0:
                 top_rounds = max(1, int(round(rounds * max(1.0, float(self.LOCAL_SEARCH_SCORE_BIAS_MAX_MULT)))))
-            score_gap = max(0.0, max_score - float(self.score))
+            score_gap = max(0, max_score_bucket - score_bucket)
             rounds = max(1, int(round(top_rounds / (base ** score_gap))))
         for _ in range(rounds):
             candidates = []
@@ -853,9 +867,14 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
                 scores[idx] = row
         for d, row in zip(data, scores):
             d._apply_score(row)
-        for d in data:
-            if always_search or (d.score < 0 and redeem_only):
-                d.local_search(improve_with_local_search=always_search)
+        valid_scores = [float(d.score) for d in data if d.score >= 0]
+        cls.LOCAL_SEARCH_CURRENT_MAX_SCORE = max(valid_scores) if valid_scores else None
+        try:
+            for d in data:
+                if always_search or (d.score < 0 and redeem_only):
+                    d.local_search(improve_with_local_search=always_search)
+        finally:
+            cls.LOCAL_SEARCH_CURRENT_MAX_SCORE = None
         if always_search and cls.LOCAL_SEARCH_PGL2_TOP_ORBIT:
             expanded = []
             seen = {d.features for d in data}
@@ -925,7 +944,7 @@ class FixedFactorizedHyperellipticEnvironment(BaseEnvironment):
         parser.add_argument("--local_search_merge_weight", type=float, default=0.10, help="Local-search mutation weight for merging two factors")
         parser.add_argument("--local_search_pgl2_top_orbit", type=bool_flag, default=True, help="If true, append the full PGL2 orbit of top-score local-search results")
         parser.add_argument("--score_batch_size", type=int, default=32, help="Sage scorer batch size")
-        parser.add_argument("--sparsity_reject_threshold", type=int, default=-1, help="Reject Hasse-Witt and actual L-polynomial sparsity >= this value; -1 uses ceil(0.35 * genus)")
+        parser.add_argument("--sparsity_reject_threshold", type=int, default=-1, help="Deprecated; sparsity is no longer rejected during fixed-factorized scoring")
         parser.add_argument(
             "--score_tiebreak_mode",
             type=str,
