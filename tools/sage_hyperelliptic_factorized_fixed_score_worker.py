@@ -45,7 +45,7 @@ def genus_from_degree(degree):
     return (degree - 2) // 2
 
 
-def hasse_witt_target_sparsity(poly, p, genus):
+def hasse_witt_target_coeffs(poly, p, genus):
     powered = poly ** ((p - 1) // 2)
     field = poly.parent().base_ring()
     matrix_rows = []
@@ -57,11 +57,10 @@ def hasse_witt_target_sparsity(poly, p, genus):
     matrix = Matrix(field, matrix_rows)
     z = PolynomialRing(field, "z").gen()
     coeffs = matrix.charpoly(z).list()
-    target_coeffs = [coeffs[genus - i] for i in range(1, genus)]
-    return sum(1 for value in target_coeffs if value != 0)
+    return [int(coeffs[genus - i]) % p for i in range(1, genus)]
 
 
-def invalid(lpoly=None, genus=None, target_coeffs=None):
+def invalid(lpoly=None, genus=None, target_coeffs=None, hw_target_coeffs=None, hw_zero_count=None):
     return {
         "score": -1.0,
         "valid": False,
@@ -69,6 +68,9 @@ def invalid(lpoly=None, genus=None, target_coeffs=None):
         "lpoly": lpoly,
         "middle": None,
         "target_coeffs": target_coeffs,
+        "hw_target_coeffs": hw_target_coeffs,
+        "hw_zero_count": hw_zero_count,
+        "lpoly_zero_count": None,
     }
 
 
@@ -76,47 +78,109 @@ def coefficient_bound(p, genus, index):
     return math.comb(2 * genus, index) * (float(p) ** (0.5 * index))
 
 
-def lpoly_closeness_score(lpoly, p, genus):
-    target_coeffs = [int(lpoly[index]) for index in range(1, genus)]
-    if not target_coeffs:
-        return 0.0, target_coeffs
-    zero_count = sum(1 for value in target_coeffs if value == 0)
-    nonzero_terms = []
+def archimedean_tie_break(target_coeffs, p, genus):
+    normalized_sizes = []
     for index, value in enumerate(target_coeffs, start=1):
         if value == 0:
             continue
         bound = coefficient_bound(p, genus, index)
-        normalized = abs(float(value)) / bound if bound > 0 else float(value != 0)
-        nonzero_terms.append(max(0.0, 1.0 - min(1.0, normalized)))
-    tie_break = sum(nonzero_terms) / len(nonzero_terms) if nonzero_terms else 0.0
-    return float(zero_count + tie_break), target_coeffs
+        normalized = abs(float(value)) / bound if bound > 0 else 1.0
+        normalized_sizes.append(min(1.0, normalized))
+    if not normalized_sizes:
+        return 0.0
+    return max(0.0, min(1.0, 1.0 - (sum(normalized_sizes) / len(normalized_sizes))))
 
 
-def score_row(row, p):
+def hasse_witt_tie_break(lpoly_zero_count, hw_zero_count, target_len):
+    max_extra_modp_zeros = target_len - lpoly_zero_count
+    if max_extra_modp_zeros <= 0:
+        return 0.0
+    return (int(hw_zero_count) - lpoly_zero_count) / max_extra_modp_zeros
+
+
+def lpoly_sparsity_score(lpoly, hw_zero_count, genus, p, tie_break_mode):
+    target_coeffs = [int(lpoly[index]) for index in range(1, genus)]
+    if not target_coeffs:
+        return 0.0, target_coeffs, 0
+    lpoly_zero_count = sum(1 for value in target_coeffs if value == 0)
+    if tie_break_mode in {"average", "archimedean"}:
+        tie_break = archimedean_tie_break(target_coeffs, p, genus)
+    else:
+        tie_break = hasse_witt_tie_break(lpoly_zero_count, hw_zero_count, len(target_coeffs))
+    tie_break = max(0.0, min(1.0, float(tie_break)))
+    return float(lpoly_zero_count + tie_break), target_coeffs, lpoly_zero_count
+
+
+def precheck_row(row, p):
     field, _, x = context(p)
     try:
         coeffs = [field(int(value)) for value in row]
         if len(coeffs) < 4 or coeffs[-1] == 0:
-            return invalid()
+            return {"valid": False, "row": invalid()}
         f = sum(value * (x**degree) for degree, value in enumerate(coeffs))
         if not f.is_squarefree():
-            return invalid()
+            return {"valid": False, "row": invalid()}
 
         genus = genus_from_degree(f.degree())
         if genus is None or genus < 1 or f.degree() not in (2 * genus + 1, 2 * genus + 2):
-            return invalid()
+            return {"valid": False, "row": invalid()}
 
         factor_degrees = [factor.degree() for factor, multiplicity in f.factor() for _ in range(multiplicity)]
         if not is_mod2_allowed_factor_degrees(factor_degrees, genus, f.degree() == 2 * genus + 1):
-            return invalid(genus=genus)
+            return {"valid": False, "row": invalid(genus=genus)}
 
-        if hasse_witt_target_sparsity(f, p, genus) > 0:
-            return invalid(genus=genus)
+        hw_target_coeffs = hasse_witt_target_coeffs(f, p, genus)
+        hw_zero_count = sum(1 for value in hw_target_coeffs if value == 0)
+        hw_sparsity = max(0, genus - 1 - hw_zero_count)
+        hw_sparsity_reject_threshold = genus // 2
+        if hw_sparsity >= hw_sparsity_reject_threshold:
+            return {
+                "valid": False,
+                "row": invalid(
+                    genus=genus,
+                    hw_target_coeffs=hw_target_coeffs,
+                    hw_zero_count=hw_zero_count,
+                ),
+            }
+        return {
+            "valid": True,
+            "poly": f,
+            "genus": genus,
+            "hw_target_coeffs": hw_target_coeffs,
+            "hw_zero_count": hw_zero_count,
+        }
+    except Exception:
+        return {"valid": False, "row": invalid()}
 
-        curve = HyperellipticCurve(f)
+
+def score_prechecked(prechecked, p, tie_break_mode):
+    if not prechecked["valid"]:
+        return prechecked["row"]
+    genus = int(prechecked["genus"])
+    hw_zero_count = int(prechecked["hw_zero_count"])
+    hw_target_coeffs = prechecked["hw_target_coeffs"]
+    try:
+        curve = HyperellipticCurve(prechecked["poly"])
         frob = curve.frobenius_polynomial()
         lpoly = [int(coeff(frob, degree)) for degree in range(2 * genus + 1)]
-        score, target_coeffs = lpoly_closeness_score(lpoly, p, genus)
+        target_coeffs = [int(lpoly[index]) for index in range(1, genus)]
+        lpoly_zero_count = sum(1 for value in target_coeffs if value == 0)
+        actual_sparsity = max(0, genus - 1 - lpoly_zero_count)
+        if actual_sparsity >= genus // 2:
+            return invalid(
+                lpoly=lpoly,
+                genus=genus,
+                target_coeffs=target_coeffs,
+                hw_target_coeffs=hw_target_coeffs,
+                hw_zero_count=hw_zero_count,
+            )
+        score, target_coeffs, lpoly_zero_count = lpoly_sparsity_score(
+            lpoly,
+            hw_zero_count,
+            genus,
+            p,
+            tie_break_mode,
+        )
         middle = int(lpoly[genus])
         return {
             "score": score,
@@ -125,14 +189,22 @@ def score_row(row, p):
             "lpoly": lpoly,
             "middle": middle,
             "target_coeffs": target_coeffs,
+            "hw_target_coeffs": hw_target_coeffs,
+            "hw_zero_count": hw_zero_count,
+            "lpoly_zero_count": lpoly_zero_count,
         }
     except Exception:
-        return invalid()
+        return invalid(genus=genus, hw_target_coeffs=hw_target_coeffs, hw_zero_count=hw_zero_count)
 
 
 def handle(request):
     p = int(request["p"])
-    rows = [score_row(row, p) for row in request.get("data", [])]
+    tie_break_mode = str(request.get("score_tiebreak_mode", "hasse_witt")).lower()
+    if tie_break_mode not in {"hasse_witt", "average", "archimedean"}:
+        raise ValueError(f"unknown score_tiebreak_mode: {tie_break_mode}")
+    data = request.get("data", [])
+    prechecked = [precheck_row(row, p) for row in data]
+    rows = [score_prechecked(row, p, tie_break_mode) for row in prechecked]
     return {
         "scores": [row["score"] for row in rows],
         "valid": [row["valid"] for row in rows],
@@ -140,6 +212,9 @@ def handle(request):
         "lpolys": [row["lpoly"] for row in rows],
         "middles": [row["middle"] for row in rows],
         "target_coeffs": [row["target_coeffs"] for row in rows],
+        "hw_target_coeffs": [row["hw_target_coeffs"] for row in rows],
+        "hw_zero_counts": [row["hw_zero_count"] for row in rows],
+        "lpoly_zero_counts": [row["lpoly_zero_count"] for row in rows],
     }
 
 

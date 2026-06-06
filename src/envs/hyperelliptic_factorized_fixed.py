@@ -12,6 +12,7 @@ import numpy as np
 from src.envs.environment import BaseEnvironment, DataPoint
 from src.envs.hyperelliptic2_mod2 import is_mod2_allowed_factor_degrees
 from src.envs.tokenizers import Tokenizer
+from src.utils import bool_flag
 
 
 SUPPORTED_PRIMES = {3, 5, 7, 11}
@@ -40,14 +41,24 @@ def _sage_python_command(default=SAGE_PYTHON):
     return parts
 
 
+def _sage_subprocess_env():
+    env = os.environ.copy()
+    env["DOT_SAGE"] = SAGE_DOT_DIR
+
+    sage_app_bin = "/Applications/SageMath-10-6.app/Contents/Frameworks/Sage.framework/Versions/Current/local/bin"
+    if os.path.isdir(sage_app_bin):
+        path = env.get("PATH", "")
+        if sage_app_bin not in path.split(os.pathsep):
+            env["PATH"] = sage_app_bin + (os.pathsep + path if path else "")
+    return env
+
+
 def _sage_factor_worker():
     global _SAGE_FACTOR_WORKER
     if _SAGE_FACTOR_WORKER is not None and _SAGE_FACTOR_WORKER.poll() is None:
         return _SAGE_FACTOR_WORKER
     os.makedirs(SAGE_DOT_DIR, exist_ok=True)
     worker_path = os.path.abspath("tools/sage_hyperelliptic_factorized_worker.py")
-    env = os.environ.copy()
-    env["DOT_SAGE"] = SAGE_DOT_DIR
     _SAGE_FACTOR_WORKER = subprocess.Popen(
         _sage_python_command() + [worker_path],
         stdin=subprocess.PIPE,
@@ -55,7 +66,7 @@ def _sage_factor_worker():
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
-        env=env,
+        env=_sage_subprocess_env(),
     )
     return _SAGE_FACTOR_WORKER
 
@@ -254,7 +265,13 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
     GENUS = 8
     LOCAL_SEARCH_STEPS = 0
     LOCAL_SEARCH_BATCH_SIZE = 32
+    LOCAL_SEARCH_SCORE_BIAS = False
+    LOCAL_SEARCH_SCORE_BIAS_MAX_MULT = 4.0
+    LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE = 0.0
+    LOCAL_SEARCH_SCORE_BIAS_BASE = 2.0
+    LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS = 0
     SCORE_BATCH_SIZE = 32
+    SCORE_TIEBREAK_MODE = "hasse_witt"
     SAGE_PYTHON = SAGE_PYTHON
     SAGE_DOT_DIR = SAGE_DOT_DIR
     _SAGE_SCORE_WORKER = None
@@ -271,6 +288,9 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         self.lpoly = None
         self.middle = None
         self.target_coeffs = None
+        self.hw_target_coeffs = None
+        self.hw_zero_count = None
+        self.lpoly_zero_count = None
         if init:
             self.genus = self.GENUS
             self.N = self.GENUS
@@ -329,6 +349,11 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         self.target_coeffs = (
             [int(v) for v in row["target_coeffs"]] if row["target_coeffs"] is not None else None
         )
+        self.hw_target_coeffs = (
+            [int(v) for v in row.get("hw_target_coeffs")] if row.get("hw_target_coeffs") is not None else None
+        )
+        self.hw_zero_count = int(row["hw_zero_count"]) if row.get("hw_zero_count") is not None else None
+        self.lpoly_zero_count = int(row["lpoly_zero_count"]) if row.get("lpoly_zero_count") is not None else None
 
     @classmethod
     def _sage_score_worker(cls):
@@ -336,7 +361,7 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
             return cls._SAGE_SCORE_WORKER
         os.makedirs(cls.SAGE_DOT_DIR, exist_ok=True)
         worker_path = os.path.abspath("tools/sage_hyperelliptic_factorized_fixed_score_worker.py")
-        env = os.environ.copy()
+        env = _sage_subprocess_env()
         env["DOT_SAGE"] = cls.SAGE_DOT_DIR
         cls._SAGE_SCORE_WORKER = subprocess.Popen(
             _sage_python_command(cls.SAGE_PYTHON) + [worker_path],
@@ -364,7 +389,12 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
             group = [idx for idx, value in enumerate(primes) if value == p]
             for start in range(0, len(group), cls.SCORE_BATCH_SIZE):
                 indices = group[start : start + cls.SCORE_BATCH_SIZE]
-                request = {"p": p, "data": [arrays[idx] for idx in indices]}
+                request = {
+                    "p": p,
+                    "genus": cls.GENUS,
+                    "data": [arrays[idx] for idx in indices],
+                    "score_tiebreak_mode": cls.SCORE_TIEBREAK_MODE,
+                }
                 worker.stdin.write(json.dumps(request) + "\n")
                 worker.stdin.flush()
                 line = worker.stdout.readline()
@@ -384,6 +414,9 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
                         "lpoly": response["lpolys"][offset],
                         "middle": response["middles"][offset],
                         "target_coeffs": response["target_coeffs"][offset],
+                        "hw_target_coeffs": response["hw_target_coeffs"][offset],
+                        "hw_zero_count": response["hw_zero_counts"][offset],
+                        "lpoly_zero_count": response["lpoly_zero_counts"][offset],
                     }
                     if row["score"] < 0:
                         n_invalid += 1
@@ -512,6 +545,14 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         best_factors = list(self.factors or [])
         best = self
         rounds = self.LOCAL_SEARCH_STEPS if improve_with_local_search else max(1, self.LOCAL_SEARCH_STEPS // 4)
+        if improve_with_local_search and self.LOCAL_SEARCH_SCORE_BIAS and self.score >= self.LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE:
+            max_score = max(1.0, float(self.GENUS - 1))
+            base = max(1.0, float(self.LOCAL_SEARCH_SCORE_BIAS_BASE))
+            top_rounds = int(self.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS)
+            if top_rounds <= 0:
+                top_rounds = max(1, int(round(rounds * max(1.0, float(self.LOCAL_SEARCH_SCORE_BIAS_MAX_MULT)))))
+            score_gap = max(0.0, max_score - float(self.score))
+            rounds = max(1, int(round(top_rounds / (base ** score_gap))))
         for _ in range(rounds):
             candidates = []
             for _ in range(self.LOCAL_SEARCH_BATCH_SIZE):
@@ -542,7 +583,21 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         cls.GENUS = int(pars["genus"])
         cls.LOCAL_SEARCH_STEPS = int(pars.get("local_search_steps", cls.LOCAL_SEARCH_STEPS))
         cls.LOCAL_SEARCH_BATCH_SIZE = int(pars.get("local_search_batch_size", cls.LOCAL_SEARCH_BATCH_SIZE))
+        cls.LOCAL_SEARCH_SCORE_BIAS = str(pars.get("local_search_score_bias", cls.LOCAL_SEARCH_SCORE_BIAS)).lower() in {"1", "true", "yes", "on"}
+        cls.LOCAL_SEARCH_SCORE_BIAS_MAX_MULT = float(
+            pars.get("local_search_score_bias_max_mult", cls.LOCAL_SEARCH_SCORE_BIAS_MAX_MULT)
+        )
+        cls.LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE = float(
+            pars.get("local_search_score_bias_min_score", cls.LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE)
+        )
+        cls.LOCAL_SEARCH_SCORE_BIAS_BASE = float(
+            pars.get("local_search_score_bias_base", cls.LOCAL_SEARCH_SCORE_BIAS_BASE)
+        )
+        cls.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS = int(
+            pars.get("local_search_score_bias_top_rounds", cls.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS)
+        )
         cls.SCORE_BATCH_SIZE = int(pars.get("score_batch_size", cls.SCORE_BATCH_SIZE))
+        cls.SCORE_TIEBREAK_MODE = str(pars.get("score_tiebreak_mode", cls.SCORE_TIEBREAK_MODE))
 
     @classmethod
     def _save_class_params(cls):
@@ -551,7 +606,13 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
             "genus": cls.GENUS,
             "local_search_steps": cls.LOCAL_SEARCH_STEPS,
             "local_search_batch_size": cls.LOCAL_SEARCH_BATCH_SIZE,
+            "local_search_score_bias": cls.LOCAL_SEARCH_SCORE_BIAS,
+            "local_search_score_bias_max_mult": cls.LOCAL_SEARCH_SCORE_BIAS_MAX_MULT,
+            "local_search_score_bias_min_score": cls.LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE,
+            "local_search_score_bias_base": cls.LOCAL_SEARCH_SCORE_BIAS_BASE,
+            "local_search_score_bias_top_rounds": cls.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS,
             "score_batch_size": cls.SCORE_BATCH_SIZE,
+            "score_tiebreak_mode": cls.SCORE_TIEBREAK_MODE,
         }
 
     @classmethod
@@ -585,6 +646,9 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
                 d.lpoly = getattr(item, "lpoly", None)
                 d.middle = getattr(item, "middle", None)
                 d.target_coeffs = getattr(item, "target_coeffs", None)
+                d.hw_target_coeffs = getattr(item, "hw_target_coeffs", None)
+                d.hw_zero_count = getattr(item, "hw_zero_count", None)
+                d.lpoly_zero_count = getattr(item, "lpoly_zero_count", None)
                 out.append(d)
                 if max_rows and max_rows > 0 and len(out) >= max_rows:
                     break
@@ -678,6 +742,9 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
                     "lpoly": None,
                     "middle": None,
                     "target_coeffs": None,
+                    "hw_target_coeffs": None,
+                    "hw_zero_count": None,
+                    "lpoly_zero_count": None,
                 }
                 n_invalid += 1
         if score_indices:
@@ -714,7 +781,13 @@ class FixedFactorizedHyperellipticEnvironment(BaseEnvironment):
         self.data_class.GENUS = params.N
         self.data_class.LOCAL_SEARCH_STEPS = params.local_search_steps
         self.data_class.LOCAL_SEARCH_BATCH_SIZE = params.local_search_batch_size
+        self.data_class.LOCAL_SEARCH_SCORE_BIAS = params.local_search_score_bias
+        self.data_class.LOCAL_SEARCH_SCORE_BIAS_MAX_MULT = params.local_search_score_bias_max_mult
+        self.data_class.LOCAL_SEARCH_SCORE_BIAS_MIN_SCORE = params.local_search_score_bias_min_score
+        self.data_class.LOCAL_SEARCH_SCORE_BIAS_BASE = params.local_search_score_bias_base
+        self.data_class.LOCAL_SEARCH_SCORE_BIAS_TOP_ROUNDS = params.local_search_score_bias_top_rounds
         self.data_class.SCORE_BATCH_SIZE = params.score_batch_size
+        self.data_class.SCORE_TIEBREAK_MODE = params.score_tiebreak_mode
         self.tokenizer = FixedFactorizedHyperellipticTokenizer(
             dataclass=self.data_class,
             genus=params.N,
@@ -728,6 +801,18 @@ class FixedFactorizedHyperellipticEnvironment(BaseEnvironment):
         parser.add_argument("--p", type=int, default=3, help="Prime field characteristic")
         parser.add_argument("--local_search_steps", type=int, default=0, help="Fixed-genus factor local-search rounds")
         parser.add_argument("--local_search_batch_size", type=int, default=32, help="Factor mutations tested per round")
+        parser.add_argument("--local_search_score_bias", type=bool_flag, default=False, help="If true, give higher-scoring candidates more local-search rounds")
+        parser.add_argument("--local_search_score_bias_max_mult", type=float, default=4.0, help="Fallback multiplier for top-score local-search rounds when --local_search_score_bias_top_rounds is 0")
+        parser.add_argument("--local_search_score_bias_min_score", type=float, default=0.0, help="Minimum score required before score-biased local-search scaling applies")
+        parser.add_argument("--local_search_score_bias_base", type=float, default=2.0, help="Exponential local-search decay per score point below maximum")
+        parser.add_argument("--local_search_score_bias_top_rounds", type=int, default=0, help="Local-search rounds assigned to maximum-score candidates; 0 uses --local_search_steps times --local_search_score_bias_max_mult")
         parser.add_argument("--score_batch_size", type=int, default=32, help="Sage scorer batch size")
+        parser.add_argument(
+            "--score_tiebreak_mode",
+            type=str,
+            default="hasse_witt",
+            choices=["hasse_witt", "average", "archimedean"],
+            help="Fractional tie-break for equal actual sparsity: hasse_witt uses mod-p sparsity, average/archimedean uses normalized average absolute L-polynomial coefficient size",
+        )
         parser.add_argument("--initial_data_sqlite", type=str, default="", help="Comma-separated SQLite or pickle seed files")
         parser.add_argument("--initial_data_max_rows", type=int, default=0, help="Maximum seed rows loaded from each file; 0 means all")

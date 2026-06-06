@@ -1,0 +1,66 @@
+INFO - 06/04/26 23:09:13 - 0:00:00 - ============ Initialized logger ============
+INFO - 06/04/26 23:09:13 - 0:00:00 - N: 8
+                                     always_search: True
+                                     batch_size: 4
+                                     command: python train.py --env_name hyperelliptic_factorized_fixed --exp_name hfactor_fixed_g8_noseed_10h_pool --dump_path dump --N 8 --p 3 --max_len 128 --gensize 200000 --pop_size 8000 --ntest 100 --keep_only_unique true --always_search true --redeem_only false --local_search_steps 2 --local_search_batch_size 64 --hasse_witt_percentile_filter true --hasse_witt_max_reject_percentile 15 --hasse_witt_novelty_window 512 --score_batch_size 16 --process_pool true --num_workers 4 --batch_size 4 --eval_batch_size 4 --gen_batch_size 64 --max_epochs 100000 --max_steps 800 --num_eval_steps 200 --num_samples_from_model 4000 --n_layer 3 --n_head 4 --n_embd 192 --temperature '1.4' --temp_span 6 --inc_temp '0.02' --top_k '-1' --exp_id "2026_06_04_23_09_13"
+                                     cpu: False
+                                     data_generation_only: False
+                                     device: mps
+                                     dump_path: dump/hfactor_fixed_g8_noseed_10h_pool/2026_06_04_23_09_13
+                                     env_name: hyperelliptic_factorized_fixed
+                                     eos_genus_quota: 0
+                                     eos_max_genus: 0
+                                     eos_min_genus: 0
+                                     eval_batch_size: 4
+                                     exp_id: 2026_06_04_23_09_13
+                                     exp_name: hfactor_fixed_g8_noseed_10h_pool
+                                     frontier_high_prob: 0.35
+                                     frontier_high_width: 6
+                                     frontier_low_cutoff: 4
+                                     frontier_low_prob: 0.1
+                                     frontier_max_repeat: 20
+                                     frontier_mid_prob: 0.45
+                                     frontier_top_prob: 0.1
+                                     frontier_top_width: 2
+                                     gen_batch_size: 64
+                                     gensize: 200000
+                                     genus_sampling: none
+                                     hasse_witt_max_reject_percentile: 15.0
+                                     hasse_witt_novelty_window: 512
+                                     hasse_witt_percentile_filter: True
+                                     inc_temp: 0.02
+                                     initial_data_max_rows: 0
+                                     initial_data_sqlite: 
+                                     keep_only_unique: True
+                                     learning_rate: 0.0005
+                                     local_search_batch_size: 64
+                                     local_search_steps: 2
+                                     max_epochs: 100000
+                                     max_len: 128
+                                     max_steps: 800
+                                     n_embd: 192
+                                     n_head: 4
+                                     n_layer: 3
+                                     new_proportion: 0.0
+                                     no_positional: False
+                                     ntest: 100
+                                     num_eval_steps: 200
+                                     num_samples_from_model: 4000
+                                     num_workers: 4
+                                     p: 3
+                                     pop_size: 8000
+                                     process_pool: True
+                                     redeem_only: False
+                                     save_best: False
+                                     score_batch_size: 16
+                                     seed: -1
+                                     temp_span: 6
+                                     temperature: 1.4
+                                     top_k: -1
+                                     weight_decay: 0.01
+INFO - 06/04/26 23:09:13 - 0:00:00 - The experiment will be stored in dump/hfactor_fixed_g8_noseed_10h_pool/2026_06_04_23_09_13
+                                     
+INFO - 06/04/26 23:09:13 - 0:00:00 - Running command: python train.py --env_name hyperelliptic_factorized_fixed --exp_name hfactor_fixed_g8_noseed_10h_pool --dump_path dump --N 8 --p 3 --max_len 128 --gensize 200000 --pop_size 8000 --ntest 100 --keep_only_unique true --always_search true --redeem_only false --local_search_steps 2 --local_search_batch_size 64 --hasse_witt_percentile_filter true --hasse_witt_max_reject_percentile 15 --hasse_witt_novelty_window 512 --score_batch_size 16 --process_pool true --num_workers 4 --batch_size 4 --eval_batch_size 4 --gen_batch_size 64 --max_epochs 100000 --max_steps 800 --num_eval_steps 200 --num_samples_from_model 4000 --n_layer 3 --n_head 4 --n_embd 192 --temperature '1.4' --temp_span 6 --inc_temp '0.02' --top_k '-1'
+
+INFO - 06/04/26 23:09:13 - 0:00:00 - seed: 302963978
+INFO - 06/04/26 23:09:13 - 0:00:00 - Number of parameters: 1.36M
