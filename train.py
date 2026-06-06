@@ -68,8 +68,6 @@ def get_parser():
     parser.add_argument("--eos_max_genus", type=int, default=0, help="Maximum dynamic EOS minimum genus; 0 uses --N")
     parser.add_argument("--keep_only_unique", type=bool_flag, default="true", help="keep only unique data")
     parser.add_argument("--save_best", type=bool_flag, default="false", help="save best model based on test loss")
-    parser.add_argument("--score_bucket_cap_ratio", type=float, default=0.0, help="If positive, cap lower score buckets relative to the top-score bucket; e.g. 10 means middle score bucket cap is 10x top count")
-    parser.add_argument("--score_bucket_cap_min_top_count", type=int, default=0, help="Only apply score bucket cap once the top-score bucket has at least this many examples")
     parser.add_argument("--genus_sampling", type=str, default="none", choices=["none", "frontier"], help="genus-aware training batch sampler")
     parser.add_argument("--frontier_top_width", type=int, default=2, help="frontier sampler top bucket width below current max genus")
     parser.add_argument("--frontier_high_width", type=int, default=6, help="frontier sampler high bucket width below current max genus")

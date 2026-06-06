@@ -111,7 +111,14 @@ def lpoly_sparsity_score(lpoly, hw_zero_count, genus, p, tie_break_mode):
     return float(lpoly_zero_count + tie_break), target_coeffs, lpoly_zero_count
 
 
-def precheck_row(row, p):
+def effective_sparsity_reject_threshold(genus, threshold):
+    threshold = int(threshold)
+    if threshold < 0:
+        return (7 * int(genus) + 19) // 20
+    return threshold
+
+
+def precheck_row(row, p, sparsity_reject_threshold):
     field, _, x = context(p)
     try:
         coeffs = [field(int(value)) for value in row]
@@ -132,7 +139,10 @@ def precheck_row(row, p):
         hw_target_coeffs = hasse_witt_target_coeffs(f, p, genus)
         hw_zero_count = sum(1 for value in hw_target_coeffs if value == 0)
         hw_sparsity = max(0, genus - 1 - hw_zero_count)
-        hw_sparsity_reject_threshold = genus // 2
+        hw_sparsity_reject_threshold = effective_sparsity_reject_threshold(
+            genus,
+            sparsity_reject_threshold,
+        )
         if hw_sparsity >= hw_sparsity_reject_threshold:
             return {
                 "valid": False,
@@ -153,7 +163,7 @@ def precheck_row(row, p):
         return {"valid": False, "row": invalid()}
 
 
-def score_prechecked(prechecked, p, tie_break_mode):
+def score_prechecked(prechecked, p, tie_break_mode, sparsity_reject_threshold):
     if not prechecked["valid"]:
         return prechecked["row"]
     genus = int(prechecked["genus"])
@@ -166,7 +176,11 @@ def score_prechecked(prechecked, p, tie_break_mode):
         target_coeffs = [int(lpoly[index]) for index in range(1, genus)]
         lpoly_zero_count = sum(1 for value in target_coeffs if value == 0)
         actual_sparsity = max(0, genus - 1 - lpoly_zero_count)
-        if actual_sparsity >= genus // 2:
+        actual_sparsity_reject_threshold = effective_sparsity_reject_threshold(
+            genus,
+            sparsity_reject_threshold,
+        )
+        if actual_sparsity >= actual_sparsity_reject_threshold:
             return invalid(
                 lpoly=lpoly,
                 genus=genus,
@@ -202,9 +216,13 @@ def handle(request):
     tie_break_mode = str(request.get("score_tiebreak_mode", "hasse_witt")).lower()
     if tie_break_mode not in {"hasse_witt", "average", "archimedean"}:
         raise ValueError(f"unknown score_tiebreak_mode: {tie_break_mode}")
+    sparsity_reject_threshold = int(request.get("sparsity_reject_threshold", -1))
     data = request.get("data", [])
-    prechecked = [precheck_row(row, p) for row in data]
-    rows = [score_prechecked(row, p, tie_break_mode) for row in prechecked]
+    prechecked = [precheck_row(row, p, sparsity_reject_threshold) for row in data]
+    rows = [
+        score_prechecked(row, p, tie_break_mode, sparsity_reject_threshold)
+        for row in prechecked
+    ]
     return {
         "scores": [row["score"] for row in rows],
         "valid": [row["valid"] for row in rows],

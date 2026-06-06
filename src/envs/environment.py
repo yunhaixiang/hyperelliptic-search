@@ -96,6 +96,21 @@ def do_stats(n_invalid, data):
     logger.info(f"### Score distribution ###")
     if n_invalid >= 0:
         logger.info(f"Invalid examples: before local search: {n_invalid}, after: {len(data) - len(scores)}")
+    trinomial_features = set()
+    for d in data:
+        if getattr(d, "score", -1) < 0:
+            continue
+        if getattr(d, "from_pgl2_orbit", False):
+            continue
+        target_coeffs = getattr(d, "target_coeffs", None)
+        if target_coeffs is None:
+            continue
+        if all(int(value) == 0 for value in target_coeffs):
+            feature = getattr(d, "features", None)
+            if feature:
+                trinomial_features.add(feature)
+    if trinomial_features:
+        logger.info(f"Unique trinomial L-polynomial curves before PGL2 orbits: {len(trinomial_features)}")
     return compute_stats(scores)
 
 
@@ -112,6 +127,21 @@ def _do_score(d, always_search: bool = False, redeem_only: bool = False, pars=No
         if redeem_only:
             d.local_search(improve_with_local_search=False)
     return (d, invalid)
+
+
+def _do_batch_score(data, always_search: bool = False, redeem_only: bool = False, pars=None):
+    if not data:
+        return [], 0
+    batch_score = getattr(data[0], "_batch_score_datapoints", None)
+    if batch_score is None:
+        processed_data = []
+        n_invalid = 0
+        for d in data:
+            res, invalid = _do_score(d, always_search, redeem_only, pars)
+            processed_data.append(res)
+            n_invalid += invalid
+        return processed_data, n_invalid
+    return batch_score(data, always_search, redeem_only, pars)
 
 
 def do_score(data, args, executor=None):
@@ -137,17 +167,46 @@ def do_score(data, args, executor=None):
     else:
         pars = data[0]._save_class_params()
 
-        chunksize = max(1, len(data) // (args.num_workers * 32))
-
-        if executor is not None:
-            for d, invalid in executor.map(_do_score, data, repeat(args.always_search), repeat(args.redeem_only), repeat(pars), chunksize=chunksize):
-                processed_data.append(d)
-                n_invalid += invalid
+        batch_score = getattr(data[0], "_batch_score_datapoints", None)
+        if batch_score is not None:
+            chunk_size = max(1, len(data) // max(1, args.num_workers * 4))
+            chunks = [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
+            if executor is not None:
+                mapped = executor.map(
+                    _do_batch_score,
+                    chunks,
+                    repeat(args.always_search),
+                    repeat(args.redeem_only),
+                    repeat(pars),
+                )
+            else:
+                ex = ProcessPoolExecutor(max_workers=args.num_workers)
+                mapped = ex.map(
+                    _do_batch_score,
+                    chunks,
+                    repeat(args.always_search),
+                    repeat(args.redeem_only),
+                    repeat(pars),
+                )
+            try:
+                for processed_chunk, invalid in mapped:
+                    processed_data.extend(processed_chunk)
+                    n_invalid += invalid
+            finally:
+                if executor is None:
+                    ex.shutdown(wait=True)
         else:
-            with ProcessPoolExecutor(max_workers=args.num_workers) as ex:
-                for d, invalid in ex.map(_do_score, data, repeat(args.always_search), repeat(args.redeem_only), repeat(pars), chunksize=chunksize):
+            chunksize = max(1, len(data) // (args.num_workers * 32))
+
+            if executor is not None:
+                for d, invalid in executor.map(_do_score, data, repeat(args.always_search), repeat(args.redeem_only), repeat(pars), chunksize=chunksize):
                     processed_data.append(d)
                     n_invalid += invalid
+            else:
+                with ProcessPoolExecutor(max_workers=args.num_workers) as ex:
+                    for d, invalid in ex.map(_do_score, data, repeat(args.always_search), repeat(args.redeem_only), repeat(pars), chunksize=chunksize):
+                        processed_data.append(d)
+                        n_invalid += invalid
 
     valid_data = [d for d in processed_data if d.score >= 0]
 

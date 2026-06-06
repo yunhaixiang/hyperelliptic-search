@@ -36,6 +36,60 @@ def factor_polynomial(coeffs, p):
     return {"leading_coefficient": leading_coefficient, "factors": sorted(factors)}
 
 
+def pgl2_representatives(p):
+    reps = []
+    seen = set()
+    for a in range(p):
+        for b in range(p):
+            for c in range(p):
+                for d in range(p):
+                    det = (a * d - b * c) % p
+                    if det == 0:
+                        continue
+                    entries = (a, b, c, d)
+                    scale = next(value for value in entries if value % p != 0)
+                    inv_scale = pow(scale, -1, p)
+                    rep = tuple((value * inv_scale) % p for value in entries)
+                    if rep in seen:
+                        continue
+                    seen.add(rep)
+                    reps.append(rep)
+    return reps
+
+
+def pgl2_transform_coefficients(coeffs, p):
+    coeffs = [int(c) % p for c in coeffs]
+    degree = len(coeffs) - 1
+    if degree < 3 or coeffs[-1] == 0:
+        return []
+    genus = (degree - 1) // 2 if degree % 2 == 1 else (degree - 2) // 2
+    homogenized_degree = 2 * genus + 2
+    field, poly_ring, x = ring(p)
+    rows = []
+    seen = set()
+    for a, b, c, d in pgl2_representatives(p):
+        numerator = field(a) * x + field(b)
+        denominator = field(c) * x + field(d)
+        transformed = poly_ring(0)
+        for i, value in enumerate(coeffs):
+            transformed += field(value) * (numerator ** i) * (denominator ** (homogenized_degree - i))
+        if transformed == 0 or transformed.degree() not in (2 * genus + 1, 2 * genus + 2):
+            continue
+        row = tuple(int(transformed[i]) % p for i in range(transformed.degree() + 1))
+        if row in seen:
+            continue
+        seen.add(row)
+        factorization = factor_polynomial(row, p)
+        if factorization is None:
+            continue
+        rows.append({
+            "coefficients": list(row),
+            "leading_coefficient": factorization["leading_coefficient"],
+            "factors": factorization["factors"],
+        })
+    return rows
+
+
 def factors_to_polynomial(factors, p, leading_coefficient=1):
     field, poly_ring, _ = ring(p)
     poly = poly_ring(field(int(leading_coefficient) % p))
@@ -105,6 +159,8 @@ def handle(request):
         if factorization is None:
             return {"leading_coefficient": None, "factors": None}
         return factorization
+    if op == "pgl2_orbit_factorizations":
+        return {"rows": pgl2_transform_coefficients(request["coefficients"], p)}
     if op == "factors_to_polynomial":
         return {
             "coefficients": factors_to_polynomial(

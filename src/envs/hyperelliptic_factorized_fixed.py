@@ -119,6 +119,17 @@ def _random_irreducible_factor(degree, p):
     return tuple(int(c) % int(p) for c in response["factor"])
 
 
+def _pgl2_orbit_factorizations(poly, p):
+    response = _sage_factor_request(
+        {
+            "op": "pgl2_orbit_factorizations",
+            "p": int(p),
+            "coefficients": [int(c) for c in poly],
+        }
+    )
+    return response.get("rows", [])
+
+
 def _random_squarefree_monic_polynomial(degree, p):
     response = _sage_factor_request(
         {"op": "random_squarefree_monic_polynomial", "p": int(p), "degree": int(degree)}
@@ -273,8 +284,10 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
     LOCAL_SEARCH_SAME_TYPE_WEIGHT = 0.80
     LOCAL_SEARCH_SPLIT_WEIGHT = 0.10
     LOCAL_SEARCH_MERGE_WEIGHT = 0.10
+    LOCAL_SEARCH_PGL2_TOP_ORBIT = True
     SCORE_BATCH_SIZE = 32
     SCORE_TIEBREAK_MODE = "hasse_witt"
+    SPARSITY_REJECT_THRESHOLD = -1
     SAGE_PYTHON = SAGE_PYTHON
     SAGE_DOT_DIR = SAGE_DOT_DIR
     _SAGE_SCORE_WORKER = None
@@ -358,6 +371,51 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         self.hw_zero_count = int(row["hw_zero_count"]) if row.get("hw_zero_count") is not None else None
         self.lpoly_zero_count = int(row["lpoly_zero_count"]) if row.get("lpoly_zero_count") is not None else None
 
+    def _copy_score_metadata_from(self, other):
+        self.score = float(other.score)
+        self.lpoly = list(other.lpoly) if other.lpoly is not None else None
+        self.middle = other.middle
+        self.target_coeffs = list(other.target_coeffs) if other.target_coeffs is not None else None
+        self.hw_target_coeffs = list(other.hw_target_coeffs) if other.hw_target_coeffs is not None else None
+        self.hw_zero_count = other.hw_zero_count
+        self.lpoly_zero_count = other.lpoly_zero_count
+
+    def _is_top_score(self):
+        return float(self.score) >= float(self.GENUS - 1) - 1e-9
+
+    def pgl2_orbit_datapoints(self):
+        if not self.LOCAL_SEARCH_PGL2_TOP_ORBIT or not self._is_top_score():
+            return []
+        rows = _pgl2_orbit_factorizations(self.data.tolist(), self.p)
+        out = []
+        seen = set()
+        for row in rows:
+            coeffs = [int(c) % int(self.p) for c in row["coefficients"]]
+            degree = len(coeffs) - 1
+            genus = _genus_from_degree(degree)
+            if genus != self.GENUS or degree not in self._allowed_degrees():
+                continue
+            factors = tuple(tuple(int(c) % int(self.p) for c in factor) for factor in row["factors"])
+            factor_degrees = [len(factor) - 1 for factor in factors]
+            if not is_mod2_allowed_factor_degrees(factor_degrees, genus, degree == 2 * genus + 1):
+                continue
+            d = self.__class__(N=genus)
+            d.p = int(self.p)
+            d.data = np.asarray(coeffs, dtype=np.int64)
+            d.leading_coefficient = int(row["leading_coefficient"]) % int(self.p)
+            d.factors = factors
+            d.degree = degree
+            d.genus = genus
+            d.N = genus
+            d.calc_features()
+            if d.features in seen:
+                continue
+            seen.add(d.features)
+            d._copy_score_metadata_from(self)
+            d.from_pgl2_orbit = True
+            out.append(d)
+        return out
+
     @classmethod
     def _sage_score_worker(cls):
         if cls._SAGE_SCORE_WORKER is not None and cls._SAGE_SCORE_WORKER.poll() is None:
@@ -397,6 +455,7 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
                     "genus": cls.GENUS,
                     "data": [arrays[idx] for idx in indices],
                     "score_tiebreak_mode": cls.SCORE_TIEBREAK_MODE,
+                    "sparsity_reject_threshold": cls.SPARSITY_REJECT_THRESHOLD,
                 }
                 worker.stdin.write(json.dumps(request) + "\n")
                 worker.stdin.flush()
@@ -622,8 +681,14 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         cls.LOCAL_SEARCH_MERGE_WEIGHT = float(
             pars.get("local_search_merge_weight", cls.LOCAL_SEARCH_MERGE_WEIGHT)
         )
+        cls.LOCAL_SEARCH_PGL2_TOP_ORBIT = str(
+            pars.get("local_search_pgl2_top_orbit", cls.LOCAL_SEARCH_PGL2_TOP_ORBIT)
+        ).lower() in {"1", "true", "yes", "on"}
         cls.SCORE_BATCH_SIZE = int(pars.get("score_batch_size", cls.SCORE_BATCH_SIZE))
         cls.SCORE_TIEBREAK_MODE = str(pars.get("score_tiebreak_mode", cls.SCORE_TIEBREAK_MODE))
+        cls.SPARSITY_REJECT_THRESHOLD = int(
+            pars.get("sparsity_reject_threshold", cls.SPARSITY_REJECT_THRESHOLD)
+        )
 
     @classmethod
     def _save_class_params(cls):
@@ -640,8 +705,10 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
             "local_search_same_type_weight": cls.LOCAL_SEARCH_SAME_TYPE_WEIGHT,
             "local_search_split_weight": cls.LOCAL_SEARCH_SPLIT_WEIGHT,
             "local_search_merge_weight": cls.LOCAL_SEARCH_MERGE_WEIGHT,
+            "local_search_pgl2_top_orbit": cls.LOCAL_SEARCH_PGL2_TOP_ORBIT,
             "score_batch_size": cls.SCORE_BATCH_SIZE,
             "score_tiebreak_mode": cls.SCORE_TIEBREAK_MODE,
+            "sparsity_reject_threshold": cls.SPARSITY_REJECT_THRESHOLD,
         }
 
     @classmethod
@@ -789,6 +856,19 @@ class FixedFactorizedHyperellipticDataPoint(DataPoint):
         for d in data:
             if always_search or (d.score < 0 and redeem_only):
                 d.local_search(improve_with_local_search=always_search)
+        if always_search and cls.LOCAL_SEARCH_PGL2_TOP_ORBIT:
+            expanded = []
+            seen = {d.features for d in data}
+            for d in data:
+                expanded.append(d)
+                if not d._is_top_score():
+                    continue
+                for orbit_point in d.pgl2_orbit_datapoints():
+                    if orbit_point.features in seen:
+                        continue
+                    seen.add(orbit_point.features)
+                    expanded.append(orbit_point)
+            data = expanded
         return data, n_invalid
 
 
@@ -818,8 +898,10 @@ class FixedFactorizedHyperellipticEnvironment(BaseEnvironment):
         self.data_class.LOCAL_SEARCH_SAME_TYPE_WEIGHT = params.local_search_same_type_weight
         self.data_class.LOCAL_SEARCH_SPLIT_WEIGHT = params.local_search_split_weight
         self.data_class.LOCAL_SEARCH_MERGE_WEIGHT = params.local_search_merge_weight
+        self.data_class.LOCAL_SEARCH_PGL2_TOP_ORBIT = params.local_search_pgl2_top_orbit
         self.data_class.SCORE_BATCH_SIZE = params.score_batch_size
         self.data_class.SCORE_TIEBREAK_MODE = params.score_tiebreak_mode
+        self.data_class.SPARSITY_REJECT_THRESHOLD = params.sparsity_reject_threshold
         self.tokenizer = FixedFactorizedHyperellipticTokenizer(
             dataclass=self.data_class,
             genus=params.N,
@@ -841,7 +923,9 @@ class FixedFactorizedHyperellipticEnvironment(BaseEnvironment):
         parser.add_argument("--local_search_same_type_weight", type=float, default=0.80, help="Local-search mutation weight for replacing a factor by another factor of the same degree")
         parser.add_argument("--local_search_split_weight", type=float, default=0.10, help="Local-search mutation weight for splitting one factor into two factors")
         parser.add_argument("--local_search_merge_weight", type=float, default=0.10, help="Local-search mutation weight for merging two factors")
+        parser.add_argument("--local_search_pgl2_top_orbit", type=bool_flag, default=True, help="If true, append the full PGL2 orbit of top-score local-search results")
         parser.add_argument("--score_batch_size", type=int, default=32, help="Sage scorer batch size")
+        parser.add_argument("--sparsity_reject_threshold", type=int, default=-1, help="Reject Hasse-Witt and actual L-polynomial sparsity >= this value; -1 uses ceil(0.35 * genus)")
         parser.add_argument(
             "--score_tiebreak_mode",
             type=str,

@@ -270,63 +270,6 @@ def select_best(n, data, args=None):
     return sorted_data
 
 
-def apply_score_bucket_cap(data, args):
-    ratio = float(getattr(args, "score_bucket_cap_ratio", 0.0))
-    if ratio <= 0.0 or not data:
-        return data
-
-    top_score = int(getattr(args, "N", 1)) - 1
-    middle_score = int(getattr(args, "N", 1)) // 2
-    top_count = sum(1 for d in data if float(getattr(d, "score", -1.0)) >= top_score)
-    min_top_count = int(getattr(args, "score_bucket_cap_min_top_count", 0))
-    if top_count < min_top_count or top_count <= 0:
-        logger.info(
-            f"Score bucket cap skipped: top_count={top_count}, "
-            f"min_top_count={min_top_count}"
-        )
-        return data
-
-    def bucket_key(d):
-        score = float(getattr(d, "score", -1.0))
-        if score >= top_score:
-            return top_score
-        return min(top_score - 1, max(middle_score, int(np.floor(score))))
-
-    def bucket_cap(bucket):
-        if bucket >= top_score:
-            return None
-        if bucket <= middle_score or top_score <= middle_score:
-            return max(1, int(round(ratio * top_count)))
-        slope = (top_score - bucket) / max(1, top_score - middle_score)
-        return max(1, int(round(top_count * (1.0 + (ratio - 1.0) * slope))))
-
-    buckets = {}
-    for d in data:
-        buckets.setdefault(bucket_key(d), []).append(d)
-
-    capped = []
-    cap_summary = []
-    for bucket, items in sorted(buckets.items(), reverse=True):
-        cap = bucket_cap(bucket)
-        if cap is None or len(items) <= cap:
-            kept = items
-        else:
-            kept = random.sample(items, cap)
-        capped.extend(kept)
-        cap_summary.append(f"{bucket}:{len(items)}->{len(kept)}")
-
-    random.shuffle(capped)
-    if len(capped) != len(data):
-        logger.info(
-            "Score bucket cap applied: "
-            f"top_score={top_score}, middle_score={middle_score}, "
-            f"ratio={ratio}, top_count={top_count}, "
-            f"size {len(data)}->{len(capped)}; buckets "
-            + ", ".join(cap_summary)
-        )
-    return capped
-
-
 def make_train_test(data, ntest):
     """
     Create a train and test dataset from a dataset.
@@ -364,6 +307,20 @@ def update_datasets(args, data, train_set, test_set, train_path, test_path):
         do_stats(-1, data)
         if aft / (bef + 1) < 0.9:
             inc_temp = True
+    previous_features = {
+        d.features
+        for src in (train_set, test_set or [])
+        for d in src
+        if getattr(d, "features", None)
+    }
+    if data:
+        new_fraction = sum(
+            1
+            for d in data
+            if getattr(d, "features", None)
+            and d.features not in previous_features
+        ) / len(data)
+        logger.info(f"Generated exact novelty vs previous epochs: {100.0 * new_fraction:.2f}%")
     if args.new_proportion > 0.0:
         new_data = select_best(int(args.new_proportion * args.pop_size), data, args=args)
     else:
@@ -382,7 +339,6 @@ def update_datasets(args, data, train_set, test_set, train_path, test_path):
         train_set = select_best(int((1.0 - args.new_proportion) * args.pop_size), train_set, args=args) + new_train
     else:
         train_set = select_best(args.pop_size, train_set + new_train, args=args)
-    train_set = apply_score_bucket_cap(train_set, args)
     logger.info(f"Final train and test generated. Size are train: {len(train_set)}, test {len(test_set)}")
 
     pickle.dump(test_set, open(test_path, "wb"))
